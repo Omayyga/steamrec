@@ -69,3 +69,32 @@ def exec(sql: str, params: Iterable[Any] = []) -> None:
     connection.execute(sql, tuple(params))
     connection.commit()
     connection.close()
+
+def single_fetch(sql: str, params: Iterable[Any] = []) -> sqlite3.Row | None:
+    """
+    Executes a SELECT; 
+    returns a single row (None if none are returned).
+
+    Use case:
+        Data such as user info, app details where only one row is
+        expected.
+    """
+    connection = get_connection()
+    row = connection.execute(sql, tuple(params)).fetchone()
+    connection.close()
+    return row
+
+def all_fetch(sql: str, params: Iterable[Any] = []) -> list[sqlite3.Row]:
+    """
+    Executes a SELECT; 
+    returns all available rows.
+
+    Use case:
+        Data such as owned games, build profiles, scenarios where multiple
+        rows are expected.
+
+    """
+    connection = get_connection()
+    rows = connection.execute(sql, tuple(params)).fetchall()
+    connection.close()
+    return rows
