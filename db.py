@@ -53,9 +53,9 @@ def init_db() -> None:
     connection.commit()
     connection.close()
 
-    ## gets current unix timestamp (s). ##
-    def timestamp() -> int:
-        return int(time.time())
+## gets current unix timestamp (s). ##
+def timestamp() -> int:
+    return int(time.time())
 
 def exec(sql: str, params: Iterable[Any] = []) -> None:
     """

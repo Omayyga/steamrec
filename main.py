@@ -10,14 +10,14 @@ from itsdangerous import URLSafeSerializer
 
 load_dotenv()
 
-## obtains configuration from environment variables. ##
+# >>> obtains configuration from environment variables. <<<
 steam_api_key = os.getenv("STEAM_API_KEY", "")
 base_url = os.getenv("BASE_URL", "http://127.0.0.1:8000")
 session_secret = os.getenv("SESSION_SECRET", "dev-secret")
 
 serializer = URLSafeSerializer(session_secret, salt="steamrec-session")
 
-## if no API key provided, user is warned, required to fetch owned games via steam api ##
+# >>> if no API key provided, user is warned, required to fetch owned games via steam api <<<
 if not steam_api_key:
     print("Warning: No API key provided. limited functionality.")
 
@@ -26,7 +26,7 @@ safe_serializer = URLSafeSerializer(session_secret, salt="steamrec-session")
 
 steam_openid_url = "https://steamcommunity.com/openid/login"
 
-## openid 2.0 parameters for steam login. ##
+# >>> openid 2.0 parameters for steam login. <<<
 def openid_login_url() -> str:
     
     params = {
@@ -40,7 +40,7 @@ def openid_login_url() -> str:
 
     return f"{steam_openid_url}?{urlencode(params)}"
 
-## openid response verification; posts back to steam to verify authenticity. ##
+# >>> openid response verification; posts back to steam to verify authenticity. <<<
 async def verify_openid_response(query_params: dict) -> str:
     
     data = dict(query_params)
@@ -50,13 +50,13 @@ async def verify_openid_response(query_params: dict) -> str:
         response = await client.post(steam_openid_url, data=data)
         return "is_valid:true" in response.text
 
-## steamid64 extraction process. ## 
+# >>> steamid64 extraction process. <<< 
 def steamid64_extract(steam_id: str) -> str | None:
    id = re.search(r"^https?://steamcommunity\.com/openid/id/(\d+)$", steam_id)
    return id.group(1) if id else None
 
 
-## developed locally; secure set to False ##
+# >>> developed locally; secure set to False <<<
 def set_session_cookie(response: RedirectResponse, steamid64: str) -> None:
     tk = serializer.dumps({"steamid64": steamid64})
     response.set_cookie("session", tk, httponly=True, secure=False, samesite="lax", max_age=60*60*24*7)
@@ -73,8 +73,8 @@ def get_session_steamid64(request: Request) -> str | None:
 
 app = FastAPI()
 
-## login route; if user logged in, shows steamid64 as well a owned games and logout links. ##
-##  if not logged in, shows login link. ##
+# >>> login route; if user logged in, shows steamid64 as well a owned games and logout links. 
+#  if not logged in, shows login link. <<<
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     steamid64 = get_session_steamid64(request)
@@ -96,14 +96,14 @@ def home(request: Request):
 def login():
     return RedirectResponse(openid_login_url(), status_code=302)
 
-## callback route for steam login. ##
-## runs and extracts query parameters so they can be validated and processed. ##
+# >>> callback route for steam login. 
+# runs and extracts query parameters so they can be validated and processed. <<<
 @app.get("/auth/steam/callback")
 async def steam_auth_callback(request: Request):
     query_params = dict(request.query_params)
 
-## validates steam's login response; 
-## extracts steamid64 and sets session cookie if successful. ##
+# >>> validates steam's login response; 
+# extracts steamid64 and sets session cookie if successful. <<<
     claimed_id = query_params.get("openid.claimed_id")
     if not claimed_id:
         return JSONResponse({"error": "Missing openid.claimed_id"}, status_code=400)
@@ -120,15 +120,15 @@ async def steam_auth_callback(request: Request):
     set_session_cookie(response, steamid64)
     return response
 
-## logout route; deletes session cookie and redirects to home. ##
+# >>> logout route; deletes session cookie and redirects to home. <<<
 @app.get("/logout")
 def logout():
     response = RedirectResponse("/", status_code=302)
     response.delete_cookie("session")
     return response
 
-## returns steamid64 of logged in user. ##
-## failure responds with 401 unauthorized. ##
+# >>> returns steamid64 of logged in user. 
+# failure responds with 401 unauthorized. <<<
 @app.get("/me")
 def me(request: Request):
     steamid64 = get_session_steamid64(request)
@@ -137,8 +137,8 @@ def me(request: Request):
     
     return {"steamid64": steamid64}
 
-## obtains list of owned games for logged in user via steam api. ##
-## 401 = unauthorised; 500 = missing API key. ##
+# >>> obtains list of owned games for logged in user via steam api. 
+# 401 = unauthorised; 500 = missing API key. <<<
 @app.get("/me/owned-games")
 async def owned_games(request: Request):
     steamid64 = get_session_steamid64(request)
@@ -162,7 +162,7 @@ async def owned_games(request: Request):
         response.raise_for_status()
         data = response.json()
 
-## returns trimmed view, of users top owned games. sorted by playtime. ##
+# >>> returns trimmed view, of users top owned games. sorted by playtime. <<<
     games = data.get("response", {}).get("games", []) or []
     sorted_games = sorted(games, key = lambda g: g.get("playtime_forever", 0), reverse=True)
     top_owned = [
