@@ -73,7 +73,8 @@ def get_session_steamid64(request: Request) -> str | None:
 
 app = FastAPI()
 
-## login route; if user logged in, shows steamid64 as well a owned games and logout links. if not logged in, shows login link. ##
+## login route; if user logged in, shows steamid64 as well a owned games and logout links. ##
+##  if not logged in, shows login link. ##
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     steamid64 = get_session_steamid64(request)
@@ -95,12 +96,14 @@ def home(request: Request):
 def login():
     return RedirectResponse(openid_login_url(), status_code=302)
 
-## callback route for steam login. runs and extracts query parameters so they can be validated and processed. ##
+## callback route for steam login. ##
+## runs and extracts query parameters so they can be validated and processed. ##
 @app.get("/auth/steam/callback")
 async def steam_auth_callback(request: Request):
     query_params = dict(request.query_params)
 
-## validates steam's login response; extracts steamid64 and sets session cookie if successful. ##
+## validates steam's login response; 
+## extracts steamid64 and sets session cookie if successful. ##
     claimed_id = query_params.get("openid.claimed_id")
     if not claimed_id:
         return JSONResponse({"error": "Missing openid.claimed_id"}, status_code=400)
@@ -124,7 +127,8 @@ def logout():
     response.delete_cookie("session")
     return response
 
-## returns steamid64 of logged in user. failure responds with 401 unauthorized. ##
+## returns steamid64 of logged in user. ##
+## failure responds with 401 unauthorized. ##
 @app.get("/me")
 def me(request: Request):
     steamid64 = get_session_steamid64(request)
@@ -133,7 +137,8 @@ def me(request: Request):
     
     return {"steamid64": steamid64}
 
-## obtains list of owned games for logged in user via steam api. 401 = unauthorised; 500 = missing API key. ##
+## obtains list of owned games for logged in user via steam api. ##
+## 401 = unauthorised; 500 = missing API key. ##
 @app.get("/me/owned-games")
 async def owned_games(request: Request):
     steamid64 = get_session_steamid64(request)
@@ -157,7 +162,7 @@ async def owned_games(request: Request):
         response.raise_for_status()
         data = response.json()
 
-
+## returns trimmed view, of users top owned games. sorted by playtime. ##
     games = data.get("response", {}).get("games", []) or []
     sorted_games = sorted(games, key = lambda g: g.get("playtime_forever", 0), reverse=True)
     top_owned = [
