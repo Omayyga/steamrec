@@ -14,8 +14,8 @@ def init_db() -> None:
     connection = get_connection()
     cursor = connection.cursor()
     
-    ## Create users table if nonexistant; ##
-    ## stores steamid64 and account creation timestamp. ##
+    # >>> Create users table if nonexistant; 
+    # stores steamid64 and account creation timestamp. <<<
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS users (
@@ -25,7 +25,7 @@ def init_db() -> None:
         """
     )
 
-    ## Owned games table. steamid64 stored with game data of each owned game. ##
+    # >>> Owned games table. steamid64 stored with game data of each owned game. <<<
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS owned_games (
@@ -39,7 +39,7 @@ def init_db() -> None:
         """
     )
 
-    ## cached store metadeta. ##
+    # >>> cached store metadeta. <<<
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS app_details (
@@ -53,7 +53,7 @@ def init_db() -> None:
     connection.commit()
     connection.close()
 
-## gets current unix timestamp (s). ##
+# >>> gets current unix timestamp (s). <<<
 def timestamp() -> int:
     return int(time.time())
 
