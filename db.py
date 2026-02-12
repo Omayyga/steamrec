@@ -32,7 +32,7 @@ def init_db() -> None:
             steamid64 TEXT NOT NULL,
             appid INTEGER NOT NULL,
             name TEXT,
-            playtime_forever_min INTEGER NOT NULL,
+            pt_forever_min INTEGER NOT NULL,
             last_synced INTEGER NOT NULL,
             PRIMARY KEY (steamid64, appid)
         );
