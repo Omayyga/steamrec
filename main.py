@@ -41,7 +41,7 @@ def openid_login_url() -> str:
     return f"{steam_openid_url}?{urlencode(params)}"
 
 # >>> openid response verification; posts back to steam to verify authenticity. <<<
-async def verify_openid_response(query_params: dict) -> str:
+async def openid_verify(query_params: dict) -> str:
     
     data = dict(query_params)
     data["openid.mode"] = "check_authentication"
@@ -51,12 +51,12 @@ async def verify_openid_response(query_params: dict) -> str:
         return "is_valid:true" in response.text
 
 # >>> steamid64 extraction process. <<< 
-def steamid64_extract(steam_id: str) -> str | None:
+def sid64_extract(steam_id: str) -> str | None:
    id = re.search(r"^https?://steamcommunity\.com/openid/id/(\d+)$", steam_id)
    return id.group(1) if id else None
 
 
-# >>> developed locally; secure set to False <<<
+# >>> SECURE = FALSE -> DUE TO LOCAL DEVELOPMENT. <<<
 def set_session_cookie(response: RedirectResponse, steamid64: str) -> None:
     tk = serializer.dumps({"steamid64": steamid64})
     response.set_cookie("session", tk, httponly=True, secure=False, samesite="lax", max_age=60*60*24*7)
@@ -103,16 +103,16 @@ async def steam_auth_callback(request: Request):
     query_params = dict(request.query_params)
 
 # >>> validates steam's login response; 
-# extracts steamid64 and sets session cookie if successful. <<<
+# extracts steamid64. <<<
     claimed_id = query_params.get("openid.claimed_id")
     if not claimed_id:
         return JSONResponse({"error": "Missing openid.claimed_id"}, status_code=400)
     
-    ok = await verify_openid_response(query_params)
+    ok = await openid_verify(query_params)
     if not ok:
         return JSONResponse({"error": "OpenID authentication failed"}, status_code=400)
     
-    steamid64 = steamid64_extract(claimed_id)
+    steamid64 = sid64_extract(claimed_id)
     if not steamid64:
         return JSONResponse({"error": "Failed to extract steamid64"}, status_code=400)
     
@@ -120,7 +120,7 @@ async def steam_auth_callback(request: Request):
     set_session_cookie(response, steamid64)
     return response
 
-# >>> logout route; deletes session cookie and redirects to home. <<<
+# >>> logout route. <<<
 @app.get("/logout")
 def logout():
     response = RedirectResponse("/", status_code=302)
@@ -137,7 +137,7 @@ def me(request: Request):
     
     return {"steamid64": steamid64}
 
-# >>> obtains list of owned games for logged in user via steam api. 
+# >>> + owned games list via steam api. 
 # 401 = unauthorised; 500 = missing API key. <<<
 @app.get("/me/owned-games")
 async def owned_games(request: Request):
@@ -169,7 +169,7 @@ async def owned_games(request: Request):
         {
             "appid": i.get("appid"),
             "name": i.get("name"),
-            "playtime_hours_min":i.get("playtime_forever", 0)
+            "pt_hours_min":i.get("playtime_forever", 0)
         }
         for i in sorted_games[:30] 
     ]
