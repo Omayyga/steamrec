@@ -27,6 +27,43 @@ async def BuildUserProfile_genre(steamid64: str, TopGames_n: int = 50) -> Counte
         [steamid64, TopGames_n]
     )
 
-    # >> inc for statement for rows tmr
+    profile = Counter()
 
-    # >> Small scale scoring system?
+    for row in rows:
+        appid = row["appid"]
+        playtime = row["pt_forever_min"]
+        weight = math.log1p(playtime) # >> weighting system; should lessen burden of outliers? keep eye on -> may need tweaking.
+
+        if pt_min < 30: # >>> filter out games with less than 30 minutes playtime <<<
+            continue
+
+        appdetails = await f_appdetails_cached(appid)
+        if not appdetails:
+            continue
+
+        for genre in ext_genre(appdetails):
+            profile[genre] += weight
+
+            return profile
+
+async def GameScoring_genre(appid: int, user_profile: Counter) -> tuple[float, list[str]]:
+    """
+    Sums up weights for each genre; 
+    based of users profile.
+    
+    """
+
+    appdetails = await f_appdetails_cached(appid)
+    if not appdetails:
+        return 0.0, []
+
+    genres = ext_genre(appdetails)
+    score = sum(user_profile.get(g, 0) 
+                for g in genres)
+
+    # >> Outcome reasons; top three contributors.
+    OC_reasons = sorted(genres, key=lambda g: user_profile.get(g, 0.0), reverse = True)[:3]
+    OC_reasons = [g for g in OC_reasons if user_profile.get(g, 0.0) > 0]
+
+    return float(score), OC_reasons
+
