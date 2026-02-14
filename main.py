@@ -1,12 +1,16 @@
+from contextlib import asynccontextmanager
 import os
 import re
 import httpx
+
+from db import dbInitiate 
 
 from urllib.parse import urlencode
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse
 from itsdangerous import URLSafeSerializer
+from contextlib import asynccontextmanager
 
 load_dotenv()
 
@@ -61,7 +65,7 @@ def set_session_cookie(response: RedirectResponse, steamid64: str) -> None:
     tk = serializer.dumps({"steamid64": steamid64})
     response.set_cookie("session", tk, httponly=True, secure=False, samesite="lax", max_age=60*60*24*7)
 
-def get_session_steamid64(request: Request) -> str | None:
+def GSessionSID64(request: Request) -> str | None:
     tk = request.cookies.get("session")
     if not tk:
         return None
@@ -71,13 +75,19 @@ def get_session_steamid64(request: Request) -> str | None:
     except Exception:
         return None
 
-app = FastAPI()
+@asynccontextmanager  
+async def lifespan(app: FastAPI):
+    dbInitiate()
+    yield
+
+app = FastAPI(lifespan=lifespan)
+
 
 # >>> login route; if user logged in, shows steamid64 as well a owned games and logout links. 
 #  if not logged in, shows login link. <<<
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
-    steamid64 = get_session_steamid64(request)
+    steamid64 = GSessionSID64(request)
     if steamid64:
         return f"""<h1>Log in successful.</h1>
         <p>Your SteamID64: <code>{steamid64}</code></p>
@@ -131,7 +141,7 @@ def logout():
 # failure responds with 401 unauthorized. <<<
 @app.get("/me")
 def me(request: Request):
-    steamid64 = get_session_steamid64(request)
+    steamid64 = GSessionSID64(request)
     if not steamid64:
         return JSONResponse({"error": "User not logged in."}, status_code=401)
     
@@ -141,7 +151,7 @@ def me(request: Request):
 # 401 = unauthorised; 500 = missing API key. <<<
 @app.get("/me/owned-games")
 async def owned_games(request: Request):
-    steamid64 = get_session_steamid64(request)
+    steamid64 = GSessionSID64(request)
     if not steamid64:
         return JSONResponse({"error": "User is not logged in."}, status_code=401)
     

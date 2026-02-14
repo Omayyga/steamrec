@@ -10,7 +10,7 @@ def get_connection() -> sqlite3.Connection:
     connection.row_factory = sqlite3.Row
     return connection
 
-def init_db() -> None:
+def dbInitiate() -> None:
     connection = get_connection()
     cursor = connection.cursor()
     
