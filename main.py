@@ -4,6 +4,8 @@ import re
 import httpx
 
 from db import dbInitiate 
+from dbsync import dbsync_owned
+from rec import BuildUserProfile_genre
 
 from urllib.parse import urlencode
 from dotenv import load_dotenv
@@ -81,7 +83,6 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(lifespan=lifespan)
-
 
 # >>> login route; if user logged in, shows steamid64 as well a owned games and logout links. 
 #  if not logged in, shows login link. <<<
@@ -184,3 +185,41 @@ async def owned_games(request: Request):
         for i in sorted_games[:30] 
     ]
     return {"steamid64": steamid64, "top_games": top_owned, "total_games": len(games)}
+
+@app.get("/sync/owned-games")
+async def SyncOwned(request: Request):
+    """
+    Fetch steam library; stored in sqltie.
+    
+    Should be an occassional sync; recommendations faster since cached?
+    """#
+
+    steamid64 = GSessionSID64(request)
+    if not steamid64:
+        return JSONResponse({"error": "Not logged in."}, status_code=401)
+    
+    res = await dbsync_owned(steamid64)
+    return res
+
+@app.get("/rec")
+async def rec(request: Request):
+    """
+    Build user profile; generate recommendations. WIP.
+
+    """
+    steamid64 = GSessionSID64(request)
+    if not steamid64:
+        return JSONResponse({"error": "Not logged in."}, status_code=401)
+    
+    UserProfile = await BuildUserProfile_genre(steamid64)
+
+    # >> placeholder appids. !!! refer back when ready to replace !!! <<<
+    PLACEHOLDER = [
+        1091500, # >>> CP77
+        1174180, # >>> RDR2
+        730, # >>> CS2
+        440, # >>> TF2
+        292030, # >>> TW3: Wild Hunt
+        1245620, # >>> Elden Ring
+    ]
+

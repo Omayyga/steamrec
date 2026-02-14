@@ -34,7 +34,7 @@ async def BuildUserProfile_genre(steamid64: str, TopGames_n: int = 50) -> Counte
         playtime = row["pt_forever_min"]
         weight = math.log1p(playtime) # >> weighting system; should lessen burden of outliers? keep eye on -> may need tweaking.
 
-        if pt_min < 30: # >>> filter out games with less than 30 minutes playtime <<<
+        if playtime < 30: # >>> filter out games with less than 30 minutes playtime <<<
             continue
 
         appdetails = await f_appdetails_cached(appid)
