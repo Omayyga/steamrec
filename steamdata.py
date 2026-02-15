@@ -1,8 +1,11 @@
 import json
 import os
+from dotenv import load_dotenv
 import httpx
 
 from db import single_fetch, exec, timestamp
+
+load_dotenv()
 
 steam_api_key = os.getenv("STEAM_API_KEY", "")
 
@@ -12,10 +15,10 @@ async def f_owned(steamid64: str) -> list[dict]:
     url = "https://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/"
 
     params = {
-    "api-key": steam_api_key,
+    "key": steam_api_key,
     "steamid": steamid64,
-    "inc_appinfo": 1,
-    "inc_played_free_games": 1,
+    "include_appinfo": 1,
+    "include_played_free_games": 1,
     "format": "json",
     }
 
@@ -32,7 +35,7 @@ async def f_appdetails_store(appid: int) -> dict | None:
 
     url = "https://store.steampowered.com/api/appdetails"
     params = {
-        "application ids": str(appid),
+        "appids": str(appid),
     }
 
     async with httpx.AsyncClient(timeout=30) as client:
