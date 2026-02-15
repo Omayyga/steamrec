@@ -18,13 +18,13 @@ async def BuildUserProfile_genre(steamid64: str, TopGames_n: int = 50) -> Counte
 
     rows = all_fetch(
         """
-        SELECT appid, pt_forever_min FROM owned_games
+        SELECT appid, pt_forever_min
         FROM owned_games
         WHERE steamid64 = ?
         ORDER BY pt_forever_min DESC
-        LIMIT ?;
+        LIMIT ?
         """,
-        [steamid64, TopGames_n]
+        (steamid64, TopGames_n)
     )
 
     profile = Counter()
@@ -45,7 +45,7 @@ async def BuildUserProfile_genre(steamid64: str, TopGames_n: int = 50) -> Counte
             profile[genre] += weight
 
             return profile
-
+        
 async def GameScoring_genre(appid: int, user_profile: Counter) -> tuple[float, list[str]]:
     """
     Sums up weights for each genre; 
