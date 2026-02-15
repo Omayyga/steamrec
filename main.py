@@ -3,9 +3,9 @@ import os
 import re
 import httpx
 
-from db import dbInitiate 
+from db import all_fetch, dbInitiate 
 from dbsync import dbsync_owned
-from rec import BuildUserProfile_genre
+from rec import BuildUserProfile_genre, GameScoring_genre
 
 from urllib.parse import urlencode
 from dotenv import load_dotenv
@@ -96,6 +96,9 @@ def home(request: Request):
             <li><a href="/me">/me</a></li>
             <li><a href="/me/owned-games">/me/owned-games</a></li>
             <li><a href="/logout">/logout</a></li>
+            <li><a href="/sync/owned-games">/sync/owned-games</a></li>
+            <li><a href="/rec">/rec</a></li>
+
         </ul>
         """
     
@@ -213,13 +216,36 @@ async def rec(request: Request):
     
     UserProfile = await BuildUserProfile_genre(steamid64)
 
-    # >> placeholder appids. !!! refer back when ready to replace !!! <<<
-    PLACEHOLDER = [
+    # >> placeholder appids for testing recommendations. !!! refer back when ready to replace !!! <<<
+    TestAppIDs = [
         1091500, # >>> CP77
         1174180, # >>> RDR2
         730, # >>> CS2
         440, # >>> TF2
         292030, # >>> TW3: Wild Hunt
         1245620, # >>> Elden Ring
+        3240220, # >>> GTA5 Enhanced
+        578080, # >>> PUBG
+        377160, # >>> Fallout 4
+        570, # >>> Dota 2
+        1196590, # >>> RE: Village
+        3886870, # >>> dw about it testing the furthest end i can think off.
+        3513350, # Wuthering Waves
+        1808500, # ARC: Raiders
+        105600, # Terraria
     ]
 
+    # >>> filter out owned games. <<<
+
+    OwnedGames = all_fetch("SELECT appid FROM owned_games WHERE steamid64 = ?", (steamid64, ))
+    OwnedAppIDs = {int(row["appid"]) for row in OwnedGames}
+    TestAppIDs = [aID for aID in TestAppIDs if aID not in OwnedAppIDs]
+
+    RecScoredData = []
+
+    for appid in TestAppIDs:
+        score, reasons = await GameScoring_genre(appid, UserProfile)
+        RecScoredData.append({"appid": appid, "Score": score, "Reasons": reasons})
+
+    RecScoredData.sort(key = lambda x: x["Score"], reverse = True)
+    return {"steamid64": steamid64, "recommendations": RecScoredData[:15]}
