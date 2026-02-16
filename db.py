@@ -50,6 +50,18 @@ def dbInitiate() -> None:
         """
     )
 
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS app_index (
+        appid INTEGER PRIMARY KEY,
+        name TEXT,
+        genres TEXT,
+        categories TEXT,
+        updated_at INTEGER NOT NULL
+        );
+        """
+    )
+
     connection.commit()
     connection.close()
 
