@@ -1,4 +1,5 @@
 import math
+import json
 
 from collections import Counter
 from db import all_fetch
@@ -67,3 +68,24 @@ async def GameScoring_genre(appid: int, user_profile: Counter) -> tuple[float, l
 
     return float(score), OC_reasons
 
+# >>> generates candidate appids; should be based on profiles top genres? <<<
+def TopProfileGenres_get(profile, i = 3):
+    return [gen for gen, _ in profile.most_common(i)]
+
+def GenCandidates(profile, limit = 300):
+    TopGenres = TopProfileGenres_get(profile)
+
+    if not TopGenres:
+        return []
+
+    rows = all_fetch("SELECT appid, genres FROM app_index")
+    candidates = []
+
+    for r in rows:
+        appid = int(r["appid"])
+        genres = json.loads(r["genres"])
+
+        if any(gen in genres for gen in TopGenres):
+            candidates.append(appid)
+
+    return candidates[:limit]

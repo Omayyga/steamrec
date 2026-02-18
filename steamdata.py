@@ -64,6 +64,7 @@ async def f_appdetails_cached(appid: int, ttl_seconds: int = 60 * 60 * 24 * 7) -
     data = await f_appdetails_store(appid)
     if data is None:
         return None
+    UpsertAppIndex(appid, data)
     
     exec(
         """
@@ -76,7 +77,6 @@ async def f_appdetails_cached(appid: int, ttl_seconds: int = 60 * 60 * 24 * 7) -
         [appid, json.dumps(data), current_time]
     )
     
-    UpsertAppIndex(appid, data)
     return data
 
 # >>> Extraction Helpers. <<<
@@ -90,7 +90,7 @@ def ExtCat(appdetails: dict) -> list[str]:
 
 # >>> Upsert for App index.<<<
 def UpsertAppIndex(appid: int, appdetails: dict) -> None:
-    name = appdetails.get("Name")
+    name = appdetails.get("name")
     genres = ExtGenres(appdetails)
     categories = ExtCat(appdetails)
     timestamp = timestamp()
@@ -100,9 +100,9 @@ def UpsertAppIndex(appid: int, appdetails: dict) -> None:
         INSERT INTO app_index(appid, name, genres, categories, updated_at)
         VALUES(?,?,?,?,?)
         ON CONFLICT(appid) DO UPDATE SET
-            name = excluded.name
-            genres = excluded.genres
-            categories = excluded.genres
+            name = excluded.name,
+            genres = excluded.genres,
+            categories = excluded.categories,
             updated_at = excluded.updated_at
         """,
         (
@@ -110,6 +110,6 @@ def UpsertAppIndex(appid: int, appdetails: dict) -> None:
             name,
             json.dumps(genres),
             json.dumps(categories),
-            timestamp
-        )
+            timestamp,
+        ),
     )
