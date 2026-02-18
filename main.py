@@ -5,7 +5,8 @@ import httpx
 
 from db import all_fetch, dbInitiate 
 from dbsync import dbsync_owned
-from rec import BuildUserProfile_genre, GameScoring_genre
+from rec import BuildUserProfile_genre, GameScoring_genre, GenCandidates
+from steamdata import f_appdetails_cached
 
 from urllib.parse import urlencode
 from dotenv import load_dotenv
@@ -97,8 +98,8 @@ def home(request: Request):
             <li><a href="/me/owned-games">/me/owned-games</a></li>
             <li><a href="/logout">/logout</a></li>
             <li><a href="/sync/owned-games">/sync/owned-games</a></li>
+            <li><a href="/index/from-owned">/index/from-owned</a></li>
             <li><a href="/rec">/rec</a></li>
-
         </ul>
         """
     
@@ -204,6 +205,26 @@ async def SyncOwned(request: Request):
     res = await dbsync_owned(steamid64)
     return res
 
+@app.get("/index/from-owned")
+async def IndexOwned(request: Request):
+    """
+    Index owned games; for use after /sync/owned-games
+    """
+    steamid64 = GSessionSID64(request)
+
+    rows = all_fetch("SELECT appid FROM owned_games WHERE steamid64 = ?", (steamid64, ))
+    appids = [int(row["appid"]) for row in rows]
+
+    index = 0
+
+    for appid in appids[:100]:
+        details = await f_appdetails_cached(appid)
+
+        if details:
+            index += 1
+    
+    return {"index": index, "checked": min(len(appids), 100)}
+
 @app.get("/rec")
 async def rec(request: Request):
     """
@@ -215,35 +236,17 @@ async def rec(request: Request):
         return JSONResponse({"error": "Not logged in."}, status_code=401)
     
     UserProfile = await BuildUserProfile_genre(steamid64)
-
-    # >> placeholder appids for testing recommendations. !!! refer back when ready to replace !!! <<<
-    TestAppIDs = [
-        1091500, # >>> CP77
-        1174180, # >>> RDR2
-        730, # >>> CS2
-        440, # >>> TF2
-        292030, # >>> TW3: Wild Hunt
-        1245620, # >>> Elden Ring
-        3240220, # >>> GTA5 Enhanced
-        578080, # >>> PUBG
-        377160, # >>> Fallout 4
-        570, # >>> Dota 2
-        1196590, # >>> RE: Village
-        3886870, # >>> dw about it testing the furthest end i can think off.
-        3513350, # Wuthering Waves
-        1808500, # ARC: Raiders
-        105600, # Terraria
-    ]
+    candidates = GenCandidates(UserProfile)
 
     # >>> filter out owned games. <<<
 
     OwnedGames = all_fetch("SELECT appid FROM owned_games WHERE steamid64 = ?", (steamid64, ))
     OwnedAppIDs = {int(row["appid"]) for row in OwnedGames}
-    TestAppIDs = [aID for aID in TestAppIDs if aID not in OwnedAppIDs]
+    candidates = [aID for aID in candidates if aID not in OwnedAppIDs]
 
     RecScoredData = []
 
-    for appid in TestAppIDs:
+    for appid in candidates:
         score, reasons = await GameScoring_genre(appid, UserProfile)
         RecScoredData.append({"appid": appid, "Score": score, "Reasons": reasons})
 

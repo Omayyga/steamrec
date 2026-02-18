@@ -65,7 +65,7 @@ async def f_appdetails_cached(appid: int, ttl_seconds: int = 60 * 60 * 24 * 7) -
     if data is None:
         return None
     UpsertAppIndex(appid, data)
-    
+
     exec(
         """
         INSERT INTO app_details (appid, json, fetched_at)
@@ -93,7 +93,7 @@ def UpsertAppIndex(appid: int, appdetails: dict) -> None:
     name = appdetails.get("name")
     genres = ExtGenres(appdetails)
     categories = ExtCat(appdetails)
-    timestamp = timestamp()
+    ts = timestamp()
 
     exec(
         """
@@ -110,6 +110,6 @@ def UpsertAppIndex(appid: int, appdetails: dict) -> None:
             name,
             json.dumps(genres),
             json.dumps(categories),
-            timestamp,
+            ts,
         ),
     )
