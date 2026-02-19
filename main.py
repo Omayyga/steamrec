@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 import os
 import re
 import httpx
+import asyncio
 
 from db import all_fetch, dbInitiate 
 from dbsync import dbsync_owned
@@ -222,8 +223,31 @@ async def IndexOwned(request: Request):
 
         if details:
             index += 1
-    
+        await asyncio.sleep(0.25) # >> rate limit to 240 req/min <<<
+
     return {"index": index, "checked": min(len(appids), 100)}
+
+# >> temp to populate "app_index". !!! remove after testing finisgjed. <<<
+@app.get("/index/from-list")
+async def IndexFromList(request: Request, appids: str):
+    steamid64 = GSessionSID64(request)
+
+    parse = []
+    for p in appids.split(","):
+        p = p.strip()
+
+        if p.isdigit():
+            parse.append(int(p))
+
+    index = 0
+    for appid in parse[:200]:
+        details = await f_appdetails_cached(appid)
+
+        if details:
+            index += 1
+        await asyncio.sleep(0.25)
+
+    return {"index": index, "checked": min(len(parse), 200)}
 
 @app.get("/rec")
 async def rec(request: Request):
@@ -251,4 +275,4 @@ async def rec(request: Request):
         RecScoredData.append({"appid": appid, "Score": score, "Reasons": reasons})
 
     RecScoredData.sort(key = lambda x: x["Score"], reverse = True)
-    return {"steamid64": steamid64, "recommendations": RecScoredData[:15]}
+    return {"steamid64": steamid64, "recommendations": RecScoredData[:20]}
