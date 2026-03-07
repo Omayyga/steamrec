@@ -81,27 +81,41 @@ async def BuildUserProfile_cat(steamid64: str, TopGames_n: int = 50) -> Counter:
             profile[c] += weight
 
         return profile
-
-async def GameScoring_genre(appid: int, user_profile: Counter) -> tuple[float, list[str]]:
-    """
-    Sums up weights for each genre; 
-    based of users profile.
     
+def topMatch(itemlist: list[str], profile: Counter, n: int = 3) -> list[str]:
+    rank = sorted(itemlist, key = lambda x: profile.get(x, 0), reverse = True)
+    return [x for x in rank[:n] if profile.get(x, 0) > 0]
+
+async def GameScoring(appid: int, genreProfile: Counter, catProfile: Counter) -> tuple[float, list[str]]:
+    """
+    Scores based on genre and category overlap.
+    Should be more than just genres (??)
     """
 
     appdetails = await f_appdetails_cached(appid)
     if not appdetails:
         return 0.0, []
 
-    genres = ext_genre(appdetails)
-    score = sum(user_profile.get(g, 0) 
+    genres = [g.get ("description") for g in appdetails.get("genres") or [] if g.get("description")]
+    genreScore = sum(genreProfile.get(g, 0) 
                 for g in genres)
+    
+    cat = [c.get("description") for c in appdetails.get("categories") or [] if c.get("description")]
+    catScore = sum(catProfile.get(c, 0) for c in cat)
+
+    score = float(genreScore + 0.35 * catScore) # >> !!!! reminder to finetune starter weight.. <<<
 
     # >> Outcome reasons; top three contributors.
-    OC_reasons = sorted(genres, key=lambda g: user_profile.get(g, 0.0), reverse = True)[:3]
-    OC_reasons = [g for g in OC_reasons if user_profile.get(g, 0.0) > 0]
+    outcomeReasons = []
+    topGenre = topMatch (genres, genreProfile, 2)
+    topCat = topMatch (cat, catProfile, 2)
 
-    return float(score), OC_reasons
+    if topGenre:
+        outcomeReasons.append(f"Genre match: {', '.join(topGenre)}")
+    if topCat:
+        outcomeReasons.append(f"Category match: {', '.join(topCat)}")
+
+    return score, outcomeReasons
 
 # >>> generates candidate appids; should be based on profiles top genres? <<<
 def TopProfileGenres_get(profile, i = 3):
