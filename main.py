@@ -6,7 +6,7 @@ import asyncio
 
 from db import all_fetch, dbInitiate 
 from dbsync import dbsync_owned
-from rec import BuildUserProfile_genre, GameScoring_genre, GenCandidates
+from rec import BuildUserProfile_genre, GameScoring, GenCandidates, BuildUserProfile_cat
 from steamdata import f_appdetails_cached
 
 from urllib.parse import urlencode
@@ -227,7 +227,7 @@ async def IndexOwned(request: Request):
 
     return {"index": index, "checked": min(len(appids), 100)}
 
-# >> temp to populate "app_index". !!! remove after testing finisgjed. <<<
+# >> temp to populate "app_index". !!! remove after testing finished. <<<
 @app.get("/index/from-list")
 async def IndexFromList(request: Request, appids: str):
     steamid64 = GSessionSID64(request)
@@ -260,7 +260,9 @@ async def rec(request: Request):
         return JSONResponse({"error": "Not logged in."}, status_code=401)
     
     UserProfile = await BuildUserProfile_genre(steamid64)
-    candidates = GenCandidates(UserProfile)
+    CatProfile = await BuildUserProfile_cat(steamid64)
+
+    candidates = GenCandidates(UserProfile, limit=500, explore=250)
 
     # >>> filter out owned games. <<<
 
@@ -271,7 +273,7 @@ async def rec(request: Request):
     RecScoredData = []
 
     for appid in candidates:
-        score, reasons = await GameScoring_genre(appid, UserProfile)
+        score, reasons = await GameScoring(appid, UserProfile, CatProfile)
         RecScoredData.append({"appid": appid, "Score": score, "Reasons": reasons})
 
     RecScoredData.sort(key = lambda x: x["Score"], reverse = True)
