@@ -113,3 +113,24 @@ def UpsertAppIndex(appid: int, appdetails: dict) -> None:
             ts,
         ),
     )
+
+# >> cannot be asked taking my own screenshots so making an extracter for screenshots from steam store. <<<
+def ExtScreenshots(appdetails: dict) -> list[str]:
+    ss = appdetails.get("screenshots") or []
+    return [s.get("path_full") for s in ss if s.get("path_full")]
+
+# >>> upsert for screenshots. <<<
+def SSUpsert(appid: int, appdetails: dict) -> None:
+    urls = ExtScreenshots(appdetails)
+    ts = timestamp()
+
+    for url in urls:
+        exec(
+            """
+            INSERT INTO app_screenshots (appid, url, added_at)
+            VALUES (?,?,?)
+            """
+            (appid, url, ts),
+        )
+
+        

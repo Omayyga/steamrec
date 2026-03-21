@@ -62,6 +62,18 @@ def dbInitiate() -> None:
         """
     )
 
+    # >> table to store screenshots. to be used as a registry for the image dataset. <<
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS app_screenshots (
+        appid INTEGER NOT NULL,
+        url TEXT NOT NULL,
+        added_at INTEGER NOT NULL,
+        PRIMARY KEY (appid, url)
+        );
+        """
+    )
+
     connection.commit()
     connection.close()
 
