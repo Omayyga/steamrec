@@ -127,10 +127,9 @@ def SSUpsert(appid: int, appdetails: dict) -> None:
     for url in urls:
         exec(
             """
-            INSERT INTO app_screenshots (appid, url, added_at)
+            INSERT OR IGNORE INTO app_screenshots (appid, url, added_at)
             VALUES (?,?,?)
             """
             (appid, url, ts),
         )
 
-        
