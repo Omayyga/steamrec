@@ -65,6 +65,7 @@ async def f_appdetails_cached(appid: int, ttl_seconds: int = 60 * 60 * 24 * 7) -
     if data is None:
         return None
     UpsertAppIndex(appid, data)
+    SSUpsert(appid, data)
 
     exec(
         """
@@ -129,7 +130,7 @@ def SSUpsert(appid: int, appdetails: dict) -> None:
             """
             INSERT OR IGNORE INTO app_screenshots (appid, url, added_at)
             VALUES (?,?,?)
-            """
+            """,
             (appid, url, ts),
         )
 

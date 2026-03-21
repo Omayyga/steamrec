@@ -4,7 +4,7 @@ import re
 import httpx
 import asyncio
 
-from db import all_fetch, dbInitiate 
+from db import all_fetch, dbInitiate, single_fetch 
 from dbsync import dbsync_owned
 from rec import BuildUserProfile_genre, GameScoring, GenCandidates, BuildUserProfile_cat
 from steamdata import f_appdetails_cached
@@ -101,6 +101,8 @@ def home(request: Request):
             <li><a href="/sync/owned-games">/sync/owned-games</a></li>
             <li><a href="/index/from-owned">/index/from-owned</a></li>
             <li><a href="/rec">/rec</a></li>
+            <li><a href="/ss/count">/ss/count</a></li>
+            <li><a href="/ss/sample">/ss/sample</a></li>
         </ul>
         """
     
@@ -278,3 +280,23 @@ async def rec(request: Request):
 
     RecScoredData.sort(key = lambda x: x["Score"], reverse = True)
     return {"steamid64": steamid64, "recommendations": RecScoredData[:20]}
+
+# >> sanity check to show stored screenshot count. <<
+@app.get("/ss/count")
+def ssCount():
+    row = single_fetch("SELECT COUNT(*) AS count FROM app_screenshots")
+    return {"ss_count": row['count']}
+
+# >> debug to check sample.. <<
+@app.get("/ss/sample")
+def ssSample():
+    rows = all_fetch (
+        """
+        SELECT appid, COUNT(*) AS ss_count
+        FROM app_screenshots
+        GROUP BY appid
+        ORDER BY ss_count DESC
+        LIMIT 20
+        """
+    )
+    return {"sample": [dict(row) for row in rows]}
