@@ -1,4 +1,3 @@
-from contextlib import asynccontextmanager
 import os
 import re
 import httpx
@@ -8,11 +7,11 @@ from db import all_fetch, dbInitiate, single_fetch
 from dbsync import dbsync_owned
 from rec import BuildUserProfile_genre, GameScoring, GenCandidates, BuildUserProfile_cat
 from steamdata import f_appdetails_cached
-from img import LoadImageViaURL, imgInfo
+from img import LoadImageViaURL, imgInfo, TryLoadUploadedImg
 
 from urllib.parse import urlencode
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, UploadFile, File
 from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse
 from itsdangerous import URLSafeSerializer
 from contextlib import asynccontextmanager
@@ -322,4 +321,17 @@ def ssLoadTest():
         "appid": row["appid"],
         "url": row["url"],
         "img_info": inf 
+    }
+
+@app.post("/upload/test")
+def uploadTest(file: UploadFile = File(...)):
+    img, err = TryLoadUploadedImg(file)
+
+    if err:
+        return JSONResponse({"error": err}, status_code=400)
+    
+    return {
+        "filename": file.filename,
+        "content_type": file.content_type,
+        "img_info": imgInfo(img)
     }
