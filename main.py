@@ -8,6 +8,7 @@ from db import all_fetch, dbInitiate, single_fetch
 from dbsync import dbsync_owned
 from rec import BuildUserProfile_genre, GameScoring, GenCandidates, BuildUserProfile_cat
 from steamdata import f_appdetails_cached
+from img import LoadImageViaURL, imgInfo
 
 from urllib.parse import urlencode
 from dotenv import load_dotenv
@@ -300,3 +301,25 @@ def ssSample():
         """
     )
     return {"sample": [dict(row) for row in rows]}
+
+# >> debug route; for testing url loading <<
+@app.get("/ss/loadtest")
+def ssLoadTest():
+    row = single_fetch(
+        """
+        SELECT appid, url
+        FROM app_screenshots
+        ORDER BY RANDOM()
+        LIMIT 1
+        """
+    )
+    if not row:
+        return {"error": "No screenshots found."}
+    
+    img = LoadImageViaURL(row["url"])
+    inf = imgInfo(img)
+    return {
+        "appid": row["appid"],
+        "url": row["url"],
+        "img_info": inf 
+    }
