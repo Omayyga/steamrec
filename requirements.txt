@@ -6,3 +6,5 @@ itsdangerous
 pillow
 requests
 python-multipart
+torch
+transformers
