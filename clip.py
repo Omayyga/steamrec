@@ -1,10 +1,11 @@
 import torch
 import numpy as np
 
+from img import LoadImageViaURL, TryLoadUploadedImg
+
 from PIL import Image
 from transformers import CLIPProcessor, CLIPModel
-
-from img import LoadImageViaURL
+from fastapi import UploadFile
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 MODEL_NAME = "openai/clip-vit-base-patch32"
@@ -17,6 +18,7 @@ def _normalize_embedding(vec: torch.Tensor) -> np.ndarray:
     vec = vec / vec.norm (dim=-1, keepdim=True)
     return vec.cpu().numpy()[0]
 
+# >> convert PIL -> clip embedding vector <<<
 def EmbedPILImg(img: Image.Image) -> np.ndarray:
     input = processor(images=img, return_tensors="pt")
     input =  {k: v.to(DEVICE) for k, v in input.items()}
@@ -25,3 +27,20 @@ def EmbedPILImg(img: Image.Image) -> np.ndarray:
         imgFeatures = model.get_image_features(**input)
 
     return _normalize_embedding(imgFeatures)
+
+# >> pull image from url -> embed via clip. <<<
+def EmbedImgURL(url:str) -> np.ndarray:
+    img = LoadImageViaURL(url)
+    return EmbedPILImg(img)
+
+def EmbedUploaded(file: UploadFile):
+    """
+    attempt to load and embed uploaded image.
+    should return:
+    (embedding, None) on success. // (None, error message) on failure.
+    """
+    img, err = TryLoadUploadedImg(file)
+    if err:
+        return None, err
+    
+    return EmbedPILImg(img), None
