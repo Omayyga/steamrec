@@ -2,6 +2,7 @@ import torch
 import numpy as np
 
 from img import LoadImageViaURL, TryLoadUploadedImg
+from db import all_fetch
 
 from PIL import Image
 from transformers import CLIPProcessor, CLIPModel
@@ -64,3 +65,42 @@ def CosSimilarity(vecA, vecB) -> float:
     return cosine similarities between two vectors..
     """
     return float(np.dot(vecA, vecB))
+
+def embedSSRows(limit: int = 200):
+    """
+    load some screenshot rows from db to embed.
+    exp return -> list of dicts:
+    i.e..
+    [
+        {
+            "appid": 123,
+            "url": "https://cdn.akamai.steamstatic.com/steam/apps/123/ss_xxx.jpg",
+            "embedding": np.array([...])
+        },
+        ...
+    """
+    rows = all_fetch(
+        """
+        SELECT appid, url
+        FROM app_screenshots
+        ORDER BY RANDOM()
+        LIMIT ?
+        """,
+        (limit,)
+    )
+
+    embeddedRows = []
+
+    for r in rows:
+        try:
+            emb = EmbedImgURL(r["url"])
+            embeddedRows.append({
+                "appid": r["appid"],
+                "url": r["url"],
+                "embed": emb,
+            })
+        # >> exception should skip broken urls. Prevents crashing whole search (?) <<
+        except Exception:
+            continue
+
+    return embeddedRows
