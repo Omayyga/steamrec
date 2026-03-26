@@ -13,9 +13,21 @@ MODEL_NAME = "openai/clip-vit-base-patch32"
 model = CLIPModel.from_pretrained(MODEL_NAME).to(DEVICE)
 processor = CLIPProcessor.from_pretrained(MODEL_NAME)
 
+# >> accept either a tensor or a HF model output containing the embedding tensor. <<
+def _embedding_tensor(vec) -> torch.Tensor:
+    if isinstance(vec, torch.Tensor):
+        return vec
+
+    poolerOutput = getattr(vec, "pooler_output", None)
+    if isinstance(poolerOutput, torch.Tensor):
+        return poolerOutput
+
+    raise TypeError(f"Unsupported embedding type: {type(vec)!r}")
+
 # >> convert tensor to numpy array. also normalised. <<
-def _normalize_embedding(vec: torch.Tensor) -> np.ndarray:
-    vec = vec / vec.norm (dim=-1, keepdim=True)
+def _normalize_embedding(vec) -> np.ndarray:
+    vec = _embedding_tensor(vec)
+    vec = vec / vec.norm(dim=-1, keepdim=True)
     return vec.cpu().numpy()[0]
 
 # >> convert PIL -> clip embedding vector <<<
@@ -33,6 +45,7 @@ def EmbedImgURL(url:str) -> np.ndarray:
     img = LoadImageViaURL(url)
     return EmbedPILImg(img)
 
+# >> upload embedding helper <<
 def EmbedUploaded(file: UploadFile):
     """
     attempt to load and embed uploaded image.
@@ -44,3 +57,10 @@ def EmbedUploaded(file: UploadFile):
         return None, err
     
     return EmbedPILImg(img), None
+
+# >> similarity helper <<
+def CosSimilarity(vecA, vecB) -> float:
+    """
+    return cosine similarities between two vectors..
+    """
+    return float(np.dot(vecA, vecB))

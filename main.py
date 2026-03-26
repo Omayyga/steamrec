@@ -8,6 +8,7 @@ from dbsync import dbsync_owned
 from rec import BuildUserProfile_genre, GameScoring, GenCandidates, BuildUserProfile_cat
 from steamdata import f_appdetails_cached
 from img import LoadImageViaURL, imgInfo, TryLoadUploadedImg
+from clip import EmbedImgURL, EmbedUploaded
 
 from urllib.parse import urlencode
 from dotenv import load_dotenv
@@ -321,6 +322,40 @@ def ssLoadTest():
         "appid": row["appid"],
         "url": row["url"],
         "img_info": inf 
+    }
+
+@app.get("/clip/testdb")
+def clipTestDB():
+    row = single_fetch(
+        """
+        SELECT appid, url
+        FROM app_screenshots
+        ORDER BY RANDOM()
+        LIMIT 1"""
+    )
+
+    if not row:
+        return {"error": "No screenshots found."}
+    
+    embed = EmbedImgURL(row["url"])
+    return {
+        "appid": row["appid"],
+        "url": row["url"],
+        "embed_dim": len(embed),
+        "embed_sample": embed[:5].tolist() 
+    }
+
+@app.post("/clip/testupload")
+def clipTestUpload(f: UploadFile = File(...)):
+    emb, err = EmbedUploaded(f)
+
+    if err:
+        return JSONResponse({"error": err}, status_code=400)
+    
+    return {
+        "filename": f.filename,
+        "embed_dim": len(emb),
+        "embed_sample": emb[:5].tolist()    
     }
 
 @app.post("/upload/test")
