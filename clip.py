@@ -104,3 +104,47 @@ def embedSSRows(limit: int = 200):
             continue
 
     return embeddedRows
+
+def findTopMatches(queryEmbed, embRows, top_k: int = 5):
+    """
+    Compares query to stored screenshot embeddings.
+    Returns top_k matches based on similarity..
+    """
+
+    scored = []
+
+    for r in embRows:
+        score = CosSimilarity(queryEmbed, r["embed"])
+        scored.append({
+            "appid": r["appid"],
+            "url": r["url"],
+            "score": score,
+        })
+
+    scored.sort(key=lambda x: x["score"], reverse = True)
+    return scored[:top_k]
+
+# >> note: col = collapse. 
+# should help find the singular best match. 
+# i.e. if 3 ss match 1 appid, keeps the best result.. <<
+def colMatchByAppid(match):
+    """
+    Collapse ss level matches to appid matches..
+    best score per appid is kept.
+    """
+
+    bestByAppid = {}
+
+    for m in match:
+        appid = m["appid"]
+
+        if appid not in bestByAppid:
+            bestByAppid[appid] = m
+            continue
+
+        if m["score"] > bestByAppid[appid]["score"]:
+            bestByAppid[appid] = m
+
+    col = list(bestByAppid.values())
+    col.sort(key=lambda x: x["score"], reverse = True)
+    return col
