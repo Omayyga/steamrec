@@ -8,7 +8,7 @@ from dbsync import dbsync_owned
 from rec import BuildUserProfile_genre, GameScoring, GenCandidates, BuildUserProfile_cat
 from steamdata import f_appdetails_cached
 from img import LoadImageViaURL, imgInfo, TryLoadUploadedImg
-from clip import EmbedImgURL, EmbedUploaded
+from clip import EmbedImgURL, EmbedUploaded, embedSSRows, findTopMatches, colMatchByAppid
 
 from urllib.parse import urlencode
 from dotenv import load_dotenv
@@ -369,4 +369,28 @@ def uploadTest(file: UploadFile = File(...)):
         "filename": file.filename,
         "content_type": file.content_type,
         "img_info": imgInfo(img)
+    }
+
+@app.post("/id/test")
+def idTest(file: UploadFile = File(...)):
+    """
+    User uploads an image -> image compared to stored steam screenshots.
+    returns most similar appids.
+    """
+    query_emb, err = EmbedUploaded(file)
+    
+    if err:
+        return JSONResponse({"error": err}, status_code=400)
+    
+    embeddedRows = embedSSRows(limit=200)
+    if not embeddedRows:
+        return JSONResponse({"error": "No embedded screenshots found."}, status_code=404)
+    
+    matches = findTopMatches(query_emb, embeddedRows, top_k=15)
+    appMatches = colMatchByAppid(matches)
+
+    return {
+        "filename": file.filename,
+        "searched_rows": len(embeddedRows),
+        "matches": appMatches[:5],
     }
