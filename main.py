@@ -396,11 +396,19 @@ def idTest(file: UploadFile = File(...)):
     }
 
 @app.post("/id/fit")
-def idFit(request: Request, file: UploadFile = File(...)):
+async def idFit(request: Request, file: UploadFile = File(...)):
 
     steamid64 = GSessionSID64(request)
-    queryEmb = EmbedUploaded(file)
+    if not steamid64:
+        return JSONResponse({"error": "Not logged in."}, status_code=401)
+    
+    queryEmb, err = EmbedUploaded(file)
+    if err:
+        return JSONResponse({"error": err}, status_code=400)
+
     embRows = embedSSRows(limit = 200)
+    if not embRows:
+        return JSONResponse({"error": "No embedded screenshots found."}, status_code=404)
 
     match = findTopMatches(queryEmb, embRows, top_k=15)
     appMatches = colMatchByAppid(match)
@@ -411,9 +419,11 @@ def idFit(request: Request, file: UploadFile = File(...)):
     bestMatch = appMatches[0]
     appid = int(bestMatch["appid"])
 
+    fResult = await ScoreGame(appid, steamid64)
+
     return {
         "filename": file.filename,
         "identified_match": bestMatch,
-        "fit": None, # >> for now (!!!!) <<
+        "fit": fResult,
     }
 
