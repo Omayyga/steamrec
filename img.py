@@ -25,7 +25,7 @@ def LoadUploadedImg(file: UploadFile) -> Image.Image:
     img = Image.open(file.file).convert("RGB")
     return img
 
-# >> failsafe ver of above var. should prevent crashes from alt uploads.. refer back if doesnt work (!!!) <<
+# >> failsafe ver of above var should prevent crashes from alt uploads.. refer back if doesnt work (!!!) <<
 def TryLoadUploadedImg(file: UploadFile) -> tuple[Image.Image | None, str | None]:
     try:
         img = Image.open(file.file).convert("RGB")

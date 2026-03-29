@@ -2,8 +2,9 @@ import math
 import json
 import random
 
+from db import all_fetch, single_fetch
+
 from collections import Counter
-from db import all_fetch
 from steamdata import f_appdetails_cached
 
 # >>> extracts game genres. <<<
@@ -146,3 +147,42 @@ def GenCandidates(profile, limit = 300, explore = 150): # >>> explore -> random 
     random.shuffle(candidates)
     
     return candidates[:limit]
+
+def indexinfoGet(appid: int) -> dict:
+    """
+    Get basic info from app_index for a given appid.
+    """
+    row = single_fetch(
+        """
+        SELECT appid, name, genres, categories
+        FROM app_index
+        WHERE appid = ?
+        """,
+        (appid,)
+    )
+
+    if not row:
+        return None
+    
+    return {
+        "appid": int(row["appid"]),
+        "name": row["name"],
+        "genres": json.loads(row["genres"] or "[]"),
+        "categories": json.loads(row["categories"] or "[]")
+    }
+
+async def ScoreGame(appid: int, steamid64: str) -> dict:
+    genreProfile = await BuildUserProfile_genre(steamid64)
+    catProfile = await BuildUserProfile_cat(steamid64)
+
+    score, reasons = await GameScoring(appid, genreProfile, catProfile)
+    appinfo = indexinfoGet(appid)
+
+    return {
+        "appid": appid,
+        "name": appinfo["name"],
+        "score": score,
+        "reasons": reasons,
+        "genres": appinfo["genres"],
+        "categories": appinfo["categories"]
+    }

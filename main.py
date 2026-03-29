@@ -5,7 +5,7 @@ import asyncio
 
 from db import all_fetch, dbInitiate, single_fetch 
 from dbsync import dbsync_owned
-from rec import BuildUserProfile_genre, GameScoring, GenCandidates, BuildUserProfile_cat
+from rec import BuildUserProfile_genre, GameScoring, GenCandidates, BuildUserProfile_cat, ScoreGame
 from steamdata import f_appdetails_cached
 from img import LoadImageViaURL, imgInfo, TryLoadUploadedImg
 from clip import EmbedImgURL, EmbedUploaded, embedSSRows, findTopMatches, colMatchByAppid
@@ -394,3 +394,26 @@ def idTest(file: UploadFile = File(...)):
         "searched_rows": len(embeddedRows),
         "matches": appMatches[:5],
     }
+
+@app.post("/id/fit")
+def idFit(request: Request, file: UploadFile = File(...)):
+
+    steamid64 = GSessionSID64(request)
+    queryEmb = EmbedUploaded(file)
+    embRows = embedSSRows(limit = 200)
+
+    match = findTopMatches(queryEmb, embRows, top_k=15)
+    appMatches = colMatchByAppid(match)
+
+    if not appMatches:
+        return JSONResponse({"error": "No matches found."}, status_code=404)
+    
+    bestMatch = appMatches[0]
+    appid = int(bestMatch["appid"])
+
+    return {
+        "filename": file.filename,
+        "identified_match": bestMatch,
+        "fit": None, # >> for now (!!!!) <<
+    }
+
