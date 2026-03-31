@@ -186,3 +186,24 @@ async def ScoreGame(appid: int, steamid64: str) -> dict:
         "genres": appinfo["genres"],
         "categories": appinfo["categories"]
     }
+
+async def ScoreGameMulti(appids: list[int], steamid64: str) -> list[dict]:
+    genreProfile = await BuildUserProfile_genre(steamid64)
+    catProfile = await BuildUserProfile_cat(steamid64)
+
+    results = []
+
+    for appid in appids:
+        score, reasons = await GameScoring(appid, genreProfile, catProfile)
+        appinfo = indexinfoGet(appid)
+
+        results.append({
+            "appid": appid,
+            "name": appinfo["name"] if appinfo else None,
+            "score": score,
+            "reasons": reasons,
+            "genres": appinfo["genres"] if appinfo else [],
+            "categories": appinfo["categories"] if appinfo else []
+        })
+
+    return results

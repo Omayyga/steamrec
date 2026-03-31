@@ -5,7 +5,7 @@ import asyncio
 
 from db import all_fetch, dbInitiate, single_fetch 
 from dbsync import dbsync_owned
-from rec import BuildUserProfile_genre, GameScoring, GenCandidates, BuildUserProfile_cat, ScoreGame
+from rec import BuildUserProfile_genre, GameScoring, GenCandidates, BuildUserProfile_cat, ScoreGame, ScoreGameMulti
 from steamdata import f_appdetails_cached
 from img import LoadImageViaURL, imgInfo, TryLoadUploadedImg
 from clip import EmbedImgURL, EmbedUploaded, embedSSRows, findTopMatches, colMatchByAppid
@@ -397,6 +397,10 @@ def idTest(file: UploadFile = File(...)):
 
 @app.post("/id/fit")
 async def idFit(request: Request, file: UploadFile = File(...)):
+    """
+    Userr uploads image -> image compared to stored steam screenshots
+    -> ranks similarities to find matches then returns output...
+    """
 
     steamid64 = GSessionSID64(request)
     if not steamid64:
@@ -410,20 +414,36 @@ async def idFit(request: Request, file: UploadFile = File(...)):
     if not embRows:
         return JSONResponse({"error": "No embedded screenshots found."}, status_code=404)
 
-    match = findTopMatches(queryEmb, embRows, top_k=15)
+    match = findTopMatches(queryEmb, embRows, top_k=20)
     appMatches = colMatchByAppid(match)
 
     if not appMatches:
         return JSONResponse({"error": "No matches found."}, status_code=404)
     
-    bestMatch = appMatches[0]
-    appid = int(bestMatch["appid"])
+    topMatches = appMatches[:5]
+    topAppids = [int(match["appid"]) for match in topMatches]
 
-    fResult = await ScoreGame(appid, steamid64)
+    fResults = await ScoreGameMulti(topAppids, steamid64)
+    fByAppid = {int(app["appid"]): app for app in fResults}
+
+    combinedR = []
+
+    for match in topMatches:
+        appid = int(match["appid"])
+        f = fByAppid.get(appid)
+
+        combinedR.append({
+            "found_match": match,
+            "fScore": f,
+        })
+    
+    # >> below is for single, remove later if not used. <<
+    #bestMatch = appMatches[0]
+    #appid = int(bestMatch["appid"])
+
+    #fResult = await ScoreGame(appid, steamid64)
 
     return {
         "filename": file.filename,
-        "identified_match": bestMatch,
-        "fit": fResult,
+        "result": combinedR
     }
-
