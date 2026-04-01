@@ -207,3 +207,29 @@ async def ScoreGameMulti(appids: list[int], steamid64: str) -> list[dict]:
         })
 
     return results
+
+def bestFitResultGet(results: list[dict]) -> dict | None:
+    """
+    returns items with highest f score
+    """
+    if not results:
+        return None
+    
+    valid = [i for i in results if i.get("fScore")]
+    if not valid:
+        return None
+    
+    return max(valid, key=lambda i: i["fScore"]["score"])
+
+def bestVisualResultGet(results: list[dict]) -> dict | None:
+    """
+    returns item with highest image similarity score."""
+
+    if not results:
+        return None
+    
+    valid = [i for i in results if i.get("found_match")]
+    if not valid:
+        return None
+    
+    return max(valid, key = lambda i: i["found_match"]["score"])

@@ -5,7 +5,7 @@ import asyncio
 
 from db import all_fetch, dbInitiate, single_fetch 
 from dbsync import dbsync_owned
-from rec import BuildUserProfile_genre, GameScoring, GenCandidates, BuildUserProfile_cat, ScoreGame, ScoreGameMulti
+from rec import BuildUserProfile_genre, GameScoring, GenCandidates, BuildUserProfile_cat, ScoreGame, ScoreGameMulti, bestFitResultGet, bestVisualResultGet
 from steamdata import f_appdetails_cached
 from img import LoadImageViaURL, imgInfo, TryLoadUploadedImg
 from clip import EmbedImgURL, EmbedUploaded, embedSSRows, findTopMatches, colMatchByAppid
@@ -426,6 +426,10 @@ async def idFit(request: Request, file: UploadFile = File(...)):
     fResults = await ScoreGameMulti(topAppids, steamid64)
     fByAppid = {int(app["appid"]): app for app in fResults}
 
+    Owned = all_fetch("SELECT appid FROM owned_games WHERE steamid64 = ?", (steamid64,))
+    OwnedAppids = {int(row["appid"]) for row in Owned}
+
+
     combinedR = []
 
     for match in topMatches:
@@ -435,6 +439,7 @@ async def idFit(request: Request, file: UploadFile = File(...)):
         combinedR.append({
             "found_match": match,
             "fScore": f,
+            "owned": appid in OwnedAppids # >> bool flag; should show if user owns game. <<
         })
     
     # >> below is for single, remove later if not used. <<
@@ -443,7 +448,12 @@ async def idFit(request: Request, file: UploadFile = File(...)):
 
     #fResult = await ScoreGame(appid, steamid64)
 
+    bestFit = bestFitResultGet(combinedR)
+    bestVis = bestVisualResultGet(combinedR)
+
     return {
         "filename": file.filename,
+        "best_fit": bestFit,
+        "best_visual": bestVis,
         "result": combinedR
     }
