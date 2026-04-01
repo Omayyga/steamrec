@@ -233,3 +233,20 @@ def bestVisualResultGet(results: list[dict]) -> dict | None:
         return None
     
     return max(valid, key = lambda i: i["found_match"]["score"])
+
+def GetBestRec(results: list[dict]) -> dict:
+    """
+    returns best ***NON-OWNED*** result based on score."""
+
+    if not results:
+        return None
+    
+    cand = [
+        i for i in results
+        if i.get("fScore") and not i.get("owned", False)
+    ]
+
+    if not cand:
+        return None
+    
+    return max(cand, key=lambda i: i["fScore"]["score"])

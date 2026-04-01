@@ -5,7 +5,7 @@ import asyncio
 
 from db import all_fetch, dbInitiate, single_fetch 
 from dbsync import dbsync_owned
-from rec import BuildUserProfile_genre, GameScoring, GenCandidates, BuildUserProfile_cat, ScoreGame, ScoreGameMulti, bestFitResultGet, bestVisualResultGet
+from rec import BuildUserProfile_genre, GameScoring, GenCandidates, BuildUserProfile_cat, ScoreGame, ScoreGameMulti, bestFitResultGet, bestVisualResultGet, GetBestRec
 from steamdata import f_appdetails_cached
 from img import LoadImageViaURL, imgInfo, TryLoadUploadedImg
 from clip import EmbedImgURL, EmbedUploaded, embedSSRows, findTopMatches, colMatchByAppid
@@ -448,12 +448,17 @@ async def idFit(request: Request, file: UploadFile = File(...)):
 
     #fResult = await ScoreGame(appid, steamid64)
 
-    bestFit = bestFitResultGet(combinedR)
+    bestRec = GetBestRec(combinedR)
     bestVis = bestVisualResultGet(combinedR)
+
+    idOwned = None
+    if bestVis:
+        idOwned = bestVis.get("owned", False)
 
     return {
         "filename": file.filename,
-        "best_fit": bestFit,
         "best_visual": bestVis,
+        "id_owned": idOwned,
+        "recommendation": bestRec,
         "result": combinedR
     }
