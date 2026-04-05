@@ -234,23 +234,23 @@ def bestVisualResultGet(results: list[dict]) -> dict | None:
     
     return max(valid, key = lambda i: i["found_match"]["score"])
 
-def GetBestRec(results: list[dict]) -> dict:
+def GetBestRec(results: list[dict], visMargin : float = 0.08) -> dict | None:
     """
-    returns best ***NON-OWNED*** result based on score."""
+    returns best ***NON-OWNED*** result based on fit and visual score.
+    ONLY consider visually close to best match"""
 
-    if not results:
-        return None
-    
-    cand = [
-        i for i in results
-        if i.get("fScore") and not i.get("owned", False)
-    ]
+    cand = recCandGet(results, visMargin = visMargin)
 
     if not cand:
         return None
     
-    return max(cand, key=lambda i: i["fScore"]["score"])
+    best = max (cand, key=lambda i: recScoreGet(i))
 
+    best = dict(best)
+    best["rec_score"] = recScoreGet(best)
+
+    return best
+ 
 def recScoreGet(i: dict, visWeight: float = 20.0) -> float:
     """
     combine fScore and visual similarity to one score
@@ -261,8 +261,8 @@ def recScoreGet(i: dict, visWeight: float = 20.0) -> float:
     if not f or not match:
         return float ("-inf")
     
-    fScore = float(f.get("Score", 0.0))
-    visScore = float(match.get("Score", 0.0))
+    fScore = float(f.get("score", 0.0))
+    visScore = float(match.get("score", 0.0))
 
     return fScore + (visScore * visWeight)
 
@@ -274,7 +274,7 @@ def recCandGet(results : list[dict], visMargin : float = 0.08) -> list[dict]:
         return []
     
     visScores = [
-        float(item["found_match"]["Score"])
+        float(item["found_match"]["score"])
         for item in results
         if item.get("found_match")
     ]
@@ -291,7 +291,7 @@ def recCandGet(results : list[dict], visMargin : float = 0.08) -> list[dict]:
             not item.get("owned", False) and
             item.get("found_match") and
             item.get("fScore") and
-            float(item["found_match"]["Score"]) >= minScore
+            float(item["found_match"]["score"]) >= minScore
         )
     ]
     return candidates
