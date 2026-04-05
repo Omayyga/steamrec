@@ -250,3 +250,48 @@ def GetBestRec(results: list[dict]) -> dict:
         return None
     
     return max(cand, key=lambda i: i["fScore"]["score"])
+
+def recScoreGet(i: dict, visWeight: float = 20.0) -> float:
+    """
+    combine fScore and visual similarity to one score
+    """
+    f = i.get("fScore")
+    match = i.get("found_match")
+
+    if not f or not match:
+        return float ("-inf")
+    
+    fScore = float(f.get("Score", 0.0))
+    visScore = float(match.get("Score", 0.0))
+
+    return fScore + (visScore * visWeight)
+
+def recCandGet(results : list[dict], visMargin : float = 0.08) -> list[dict]:
+    """
+    should make sure candidates are kinda reasonably close to best visual match
+    """
+    if not results:
+        return []
+    
+    visScores = [
+        float(item["found_match"]["Score"])
+        for item in results
+        if item.get("found_match")
+    ]
+
+    if not visScores:
+        return []
+    
+    bestVisScore = max(visScores)
+    minScore = bestVisScore - visMargin
+
+    candidates = [
+        item for item in results
+        if (
+            not item.get("owned", False) and
+            item.get("found_match") and
+            item.get("fScore") and
+            float(item["found_match"]["Score"]) >= minScore
+        )
+    ]
+    return candidates
