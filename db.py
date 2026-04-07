@@ -75,6 +75,18 @@ def dbInitiate() -> None:
         """
     )
 
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS screenshot_embeddings (
+        appid INTEGER NOT NULL,
+        url TEXT NOT NULL,
+        embedding BLOB NOT NULL,
+        added_at INTEGER NOT NULL,
+        PRIMARY KEY (appid, url)
+        );
+        """
+    )
+
     connection.commit()
     connection.close()
 

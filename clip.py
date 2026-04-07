@@ -2,7 +2,7 @@ import torch
 import numpy as np
 
 from img import LoadImageViaURL, TryLoadUploadedImg
-from db import all_fetch
+from db import all_fetch, exec, single_fetch, timestamp
 
 from PIL import Image
 from transformers import CLIPProcessor, CLIPModel
@@ -148,3 +148,56 @@ def colMatchByAppid(match):
     col = list(bestByAppid.values())
     col.sort(key=lambda x: x["score"], reverse = True)
     return col
+
+# >> convert float32 enbedding vector to raw bytes <<
+def f32toBytes(vec: np.ndarray) -> bytes:
+    return vec.astype(np.float32).tobytes()
+
+# >> inverse of above, convert raw bytes back to float32 vector <<
+def bytesToF32(blob : bytes, dim : int) -> np.ndarray:
+    return np.frombuffer(blob, dtype=np.float32, count = dim)
+
+def UpsertSSEmbedding(appid: int, url: str, embed: np.ndarray):
+    """
+    add one screenshot embedding into sqlite
+    """
+
+    ts = timestamp()
+    exec("""
+        INSERT INTO screenshot_embeddings (appid, url, embedding, dim, added_at)
+        VALUES (?,?,?,?,?)
+            ON CONFLICT(appid, url) DO UPDATE SET
+            embedding = excluded.embedding,
+            dim = excluded.dim,
+            added_at = excluded.added_at
+        """,
+        (
+            appid,
+            url,
+            f32toBytes(embed),
+            int(len(embed)),
+            ts,
+        )
+    )
+
+def GetSSEmbedding(limit: int = 1000) -> list[dict]:
+    """load stored embeddings form sqlite"""
+    rows = all_fetch(
+        """
+        SELECT appid, url, embedding, dim
+        FROM screenshot_embeddings
+        LIMIT ?
+        """,
+        (limit,)
+    )
+
+    results = []
+
+    for r in rows:
+        results.append({
+            "appid": r["appid"],
+            "url": r["url"],
+            "embed": bytesToF32(r["embedding"], int(r["dim"])),            
+        })
+
+    return results
