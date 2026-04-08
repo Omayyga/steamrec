@@ -8,7 +8,7 @@ from dbsync import dbsync_owned
 from rec import BuildUserProfile_genre, GameScoring, GenCandidates, BuildUserProfile_cat, ScoreGame, ScoreGameMulti, bestFitResultGet, bestVisualResultGet, GetBestRec
 from steamdata import f_appdetails_cached
 from img import LoadImageViaURL, imgInfo, TryLoadUploadedImg
-from clip import EmbedImgURL, EmbedUploaded, embedSSRows, findTopMatches, colMatchByAppid
+from clip import EmbedImgURL, EmbedUploaded, embedSSRows, findTopMatches, colMatchByAppid, UpsertSSEmbedding
 
 from urllib.parse import urlencode
 from dotenv import load_dotenv
@@ -462,3 +462,38 @@ async def idFit(request: Request, file: UploadFile = File(...)):
         "recommendation": bestRec,
         "result": combinedR
     }
+
+@app.get("/embed/ss")
+def embedSS(limit: int = 200):
+    """embed and store ss in sqlite"""
+    rows = all_fetch(
+        """
+        SELECT appid, url
+        FROM app_screenshots
+        ORDER BY RANDOM()
+        LIMIT ?
+        """,
+        (limit,),
+    )
+
+    done = 0
+    failed = 0
+
+    for r in rows:
+        try:
+            embed = EmbedImgURL(r["url"])
+            UpsertSSEmbedding(int(r["appid"]), r["url"], embed)
+            done += 1
+        except Exception:
+            failed += 1
+        
+    return{
+        "processed": len(rows),
+        "embedded": done,
+        "failed": failed
+    }
+
+@app.get("/embed/count")
+def embedCount():
+    r = single_fetch("SELECT COUNT(*) AS count FROM screenshot_embeddings")
+    return {"embedding_count": r["count"]}
