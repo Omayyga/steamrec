@@ -410,15 +410,11 @@ async def idFit(request: Request, file: UploadFile = File(...)):
     if err:
         return JSONResponse({"error": err}, status_code=400)
 
-    embRows = embedSSRows(limit = 200)
-    if not embRows:
-        return JSONResponse({"error": "No embedded screenshots found."}, status_code=404)
-
     match = findStoredTopMatches(queryEmb, top_k=20, limit=1000)
     appMatches = colMatchByAppid(match)
 
     if not appMatches:
-        return JSONResponse({"error": "No matches found."}, status_code=404)
+        return JSONResponse({"error": "No stored screenshot embeddings found."}, status_code=404)
     
     topMatches = appMatches[:5]
     topAppids = [int(match["appid"]) for match in topMatches]
@@ -478,19 +474,27 @@ def embedSS(limit: int = 200):
 
     done = 0
     failed = 0
+    failedSamples = []
 
     for r in rows:
         try:
             embed = EmbedImgURL(r["url"])
             UpsertSSEmbedding(int(r["appid"]), r["url"], embed)
             done += 1
-        except Exception:
+        except Exception as e:
             failed += 1
+            if len(failedSamples) < 10:
+                failedSamples.append({
+                    "appid": r["appid"],
+                    "url": r["url"],
+                    "error": str(e),
+                })
         
     return{
         "processed": len(rows),
         "embedded": done,
-        "failed": failed
+        "failed": failed,
+        "failed_samples": failedSamples,
     }
 
 @app.get("/embed/count")

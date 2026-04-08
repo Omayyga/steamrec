@@ -81,9 +81,27 @@ def dbInitiate() -> None:
         appid INTEGER NOT NULL,
         url TEXT NOT NULL,
         embedding BLOB NOT NULL,
+        dim INTEGER,
         added_at INTEGER NOT NULL,
         PRIMARY KEY (appid, url)
         );
+        """
+    )
+
+    # Migrate older DBs that were created before the embedding dimension column
+    # existed so stored vectors can be reconstructed correctly.
+    columns = {
+        row["name"]
+        for row in connection.execute("PRAGMA table_info(screenshot_embeddings)").fetchall()
+    }
+    if "dim" not in columns:
+        cursor.execute("ALTER TABLE screenshot_embeddings ADD COLUMN dim INTEGER")
+
+    cursor.execute(
+        """
+        UPDATE screenshot_embeddings
+        SET dim = CAST(length(embedding) / 4 AS INTEGER)
+        WHERE dim IS NULL AND embedding IS NOT NULL
         """
     )
 

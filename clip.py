@@ -184,7 +184,7 @@ def GetSSEmbeddingStored(limit: int = 1000) -> list[dict]:
     """load stored embeddings form sqlite"""
     rows = all_fetch(
         """
-        SELECT appid, url, embedding, dim
+        SELECT appid, url, embedding, COALESCE(dim, CAST(length(embedding) / 4 AS INTEGER)) AS dim
         FROM screenshot_embeddings
         LIMIT ?
         """,
@@ -216,5 +216,5 @@ def findStoredTopMatches(queryEmbed, top_k: int = 20, limit : int = 1000):
             "score": score,
         })
 
-        scored.sort(key = lambda x: x["score"], reverse = True)
-        return scored[:top_k]
+    scored.sort(key = lambda x: x["score"], reverse = True)
+    return scored[:top_k]
