@@ -180,7 +180,7 @@ def UpsertSSEmbedding(appid: int, url: str, embed: np.ndarray):
         )
     )
 
-def GetSSEmbedding(limit: int = 1000) -> list[dict]:
+def GetSSEmbeddingStored(limit: int = 1000) -> list[dict]:
     """load stored embeddings form sqlite"""
     rows = all_fetch(
         """
@@ -201,3 +201,20 @@ def GetSSEmbedding(limit: int = 1000) -> list[dict]:
         })
 
     return results
+
+def findStoredTopMatches(queryEmbed, top_k: int = 20, limit : int = 1000):
+    """search from stored embeddings"""
+
+    rows  = GetSSEmbeddingStored(limit = limit)
+    scored = []
+
+    for r in rows:
+        score = CosSimilarity(queryEmbed, r["embed"])
+        scored.append({
+            "appid": r["appid"],
+            "url": r["url"],
+            "score": score,
+        })
+
+        scored.sort(key = lambda x: x["score"], reverse = True)
+        return scored[:top_k]

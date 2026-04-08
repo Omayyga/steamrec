@@ -8,7 +8,7 @@ from dbsync import dbsync_owned
 from rec import BuildUserProfile_genre, GameScoring, GenCandidates, BuildUserProfile_cat, ScoreGame, ScoreGameMulti, bestFitResultGet, bestVisualResultGet, GetBestRec
 from steamdata import f_appdetails_cached
 from img import LoadImageViaURL, imgInfo, TryLoadUploadedImg
-from clip import EmbedImgURL, EmbedUploaded, embedSSRows, findTopMatches, colMatchByAppid, UpsertSSEmbedding
+from clip import EmbedImgURL, EmbedUploaded, embedSSRows, findTopMatches, colMatchByAppid, UpsertSSEmbedding, findStoredTopMatches
 
 from urllib.parse import urlencode
 from dotenv import load_dotenv
@@ -414,7 +414,7 @@ async def idFit(request: Request, file: UploadFile = File(...)):
     if not embRows:
         return JSONResponse({"error": "No embedded screenshots found."}, status_code=404)
 
-    match = findTopMatches(queryEmb, embRows, top_k=20)
+    match = findStoredTopMatches(queryEmb, top_k=20, limit=1000)
     appMatches = colMatchByAppid(match)
 
     if not appMatches:
