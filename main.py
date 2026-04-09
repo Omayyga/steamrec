@@ -498,3 +498,110 @@ def embedSS(limit: int = 200):
 def embedCount():
     r = single_fetch("SELECT COUNT(*) AS count FROM screenshot_embeddings")
     return {"embedding_count": r["count"]}
+
+# >> sanity check to confirm screenshot embeddings for specific appids. <<
+@app.get("/embed/check")
+def embedCheck(appid: int):
+    """check if embedding exists for given appid"""
+    ssRow = single_fetch(
+        """
+        SELECT COUNT(*) AS count
+        FROM app_screenshots
+        WHERE appid = ?
+        """,
+        (appid,),
+    )
+
+    embRow = single_fetch(
+        """
+        SELECT COUNT(*) AS count
+        FROM screenshot_embeddings
+        WHERE appid = ?
+        """,
+        (appid,),
+    )
+
+    infoRow = single_fetch(
+        """
+        SELECT appid, name
+        FROM app_index
+        WHERE appid = ?
+        """,
+        (appid,),
+    )
+
+    return {
+        "appid": appid,
+        "name": infoRow["name"] if infoRow else None,
+        "screenshot_count": ssRow["count"] if ssRow else 0,
+        "embedding_count": embRow["count"] if embRow else 0,
+        "has_screenshot": ssRow["count"] > 0 if ssRow else False,
+        "has_embedding": embRow["count"] > 0 if embRow else False,
+    }
+
+@app.get("/embed/search")
+def embSearch(q: str):
+    """search is via name instead of appid cos im lazy"""
+    rows = all_fetch(
+        """
+        SELECT appid, name
+        FROM app_index
+        WHERE name LIKE ?
+        LIMIT 30
+        """,
+        (f"%{q}%",),
+    )
+
+    results = []
+
+    for r in rows:
+        appid = int(r["appid"])
+
+        ssRow = single_fetch(
+            """
+            SELECT COUNT(*) AS count
+            FROM app_screenshots
+            WHERE appid = ?
+            """,
+            (appid,),
+        )
+
+        embRow = single_fetch(
+            """
+            SELECT COUNT(*) AS count
+            FROM screenshot_embeddings
+            WHERE appid = ?
+            """,
+            (appid,),
+        )
+
+        results.append({
+            "appid": appid,
+            "name": r["name"],
+            "screenshot_rows": ssRow["count"],
+            "embed_rows": embRow["count"]
+        })
+
+    return {"query": q, "results": results}
+
+
+@app.get("/embed/sample")
+def embedSample():
+    """"
+    shows apps with the most stored ss embeddigns.
+    """
+
+    rows = all_fetch(
+        """
+        SELECT se.appid, ai.name, COUNT(*) AS embedding_count
+        FROM screenshot_embeddings se
+        LEFT JOIN app_index ai ON ai.appid = se.appid
+        GROUP BY se.appid
+        ORDER BY embedding_count DESC
+        LIMIT 30
+        """
+    )
+
+    return {
+        "sample": [dict(row) for row in rows]
+    }
