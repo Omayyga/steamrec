@@ -6,6 +6,7 @@ import asyncio
 from db import all_fetch, dbInitiate, single_fetch 
 from dbsync import dbsync_owned
 from rec import BuildUserProfile_genre, GameScoring, GenCandidates, BuildUserProfile_cat, ScoreGame, ScoreGameMulti, bestFitResultGet, bestVisualResultGet, GetBestRec
+from rec import prefIdentifiedNonowned
 from steamdata import f_appdetails_cached
 from img import LoadImageViaURL, imgInfo, TryLoadUploadedImg
 from clip import EmbedImgURL, EmbedUploaded, embedSSRows, findTopMatches, colMatchByAppid, UpsertSSEmbedding, findStoredTopMatches
@@ -438,14 +439,10 @@ async def idFit(request: Request, file: UploadFile = File(...)):
             "owned": appid in OwnedAppids # >> bool flag; should show if user owns game. <<
         })
     
-    # >> below is for single, remove later if not used. <<
-    #bestMatch = appMatches[0]
-    #appid = int(bestMatch["appid"])
-
-    #fResult = await ScoreGame(appid, steamid64)
-
     bestRec = GetBestRec(combinedR)
     bestVis = bestVisualResultGet(combinedR)
+
+    bestRec = prefIdentifiedNonowned(bestVis, bestRec)
 
     idOwned = None
     if bestVis:

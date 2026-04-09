@@ -295,3 +295,31 @@ def recCandGet(results : list[dict], visMargin : float = 0.08) -> list[dict]:
         )
     ]
     return candidates
+
+def prefIdentifiedNonowned(bestVis: dict | None, rec: dict | None, margin: float = 2.0):
+    """
+    if identified best visual = non owned...
+    then prefer as rec
+    unless other rec beats by meaningful margin."""
+
+    if not bestVis:
+        return rec
+    if bestVis.get("owned", True):
+        return rec
+    
+    # >> if no other recommendations, should just use identified game. <<
+    if rec is None:
+        bestVis = dict(bestVis)
+        bestVis["rec_score"] = recScoreGet(bestVis)
+        return bestVis
+    
+    bestVisScore = recScoreGet(bestVis)
+    recScore = float(rec.get("rec_score", recScoreGet(rec)))
+
+    # >> should only be used if alternative is better (?) <<
+    if recScore > bestVisScore + margin:
+        return rec
+    
+    bestVis = dict(bestVis)
+    bestVis["rec_score"] = bestVisScore
+    return bestVis
