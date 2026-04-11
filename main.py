@@ -7,9 +7,9 @@ from db import all_fetch, dbInitiate, single_fetch
 from dbsync import dbsync_owned
 from rec import BuildUserProfile_genre, GameScoring, GenCandidates, BuildUserProfile_cat, ScoreGame, ScoreGameMulti, bestFitResultGet, bestVisualResultGet, GetBestRec
 from rec import prefIdentifiedNonowned
-from steamdata import f_appdetails_cached
+from steamdata import f_appdetails_cached, cacheBackfill
 from img import LoadImageViaURL, imgInfo, TryLoadUploadedImg
-from clip import EmbedImgURL, EmbedUploaded, embedSSRows, findTopMatches, colMatchByAppid, UpsertSSEmbedding, findStoredTopMatches
+from clip import EmbedImgURL, EmbedUploaded, embedSSRows, findTopMatches, colMatchByAppid, UpsertSSEmbedding, findStoredTopMatches, embedMissingSS
 
 from urllib.parse import urlencode
 from dotenv import load_dotenv
@@ -198,10 +198,10 @@ async def owned_games(request: Request):
 @app.get("/sync/owned-games")
 async def SyncOwned(request: Request):
     """
-    Fetch steam library; stored in sqltie.
+    Fetch steam library; stored in sqlite.
     
     Should be an occassional sync; recommendations faster since cached?
-    """#
+    """
 
     steamid64 = GSessionSID64(request)
     if not steamid64:
@@ -222,14 +222,14 @@ async def IndexOwned(request: Request):
 
     index = 0
 
-    for appid in appids[:100]:
+    for appid in appids[:300]:
         details = await f_appdetails_cached(appid)
 
         if details:
             index += 1
         await asyncio.sleep(0.25) # >> rate limit to 240 req/min <<<
 
-    return {"index": index, "checked": min(len(appids), 100)}
+    return {"index": index, "checked": min(len(appids), 300)}
 
 # >> temp to populate "app_index". !!! remove after testing finished. <<<
 @app.get("/index/from-list")
@@ -244,14 +244,14 @@ async def IndexFromList(request: Request, appids: str):
             parse.append(int(p))
 
     index = 0
-    for appid in parse[:200]:
+    for appid in parse[:500]:
         details = await f_appdetails_cached(appid)
 
         if details:
             index += 1
         await asyncio.sleep(0.25)
 
-    return {"index": index, "checked": min(len(parse), 200)}
+    return {"index": index, "checked": min(len(parse), 500)}
 
 @app.get("/rec")
 async def rec(request: Request):
@@ -411,7 +411,7 @@ async def idFit(request: Request, file: UploadFile = File(...)):
     if err:
         return JSONResponse({"error": err}, status_code=400)
 
-    match = findStoredTopMatches(queryEmb, top_k=20, limit=1000)
+    match = findStoredTopMatches(queryEmb, top_k=20)
     appMatches = colMatchByAppid(match)
 
     if not appMatches:
@@ -588,7 +588,7 @@ def embSearch(q: str):
 @app.get("/embed/sample")
 def embedSample():
     """"
-    shows apps with the most stored ss embeddigns.
+    shows apps with the most stored ss embeddings.
     """
 
     rows = all_fetch(
@@ -604,4 +604,129 @@ def embedSample():
 
     return {
         "sample": [dict(row) for row in rows]
+    }
+
+@app.get("/coverage/backfill/ss")
+def covBackfill(limit: int = 200):
+    """
+    rebuild rows in [app_screenshots] for apps
+    that haeve cached details + no screenshots""" 
+
+    rows = all_fetch(
+        """
+        SELECT ad.appid
+        FROM app_details ad
+        LEFT JOIN app_screenshots ss ON ss.appid = ad.appid
+        GROUP BY ad.appid
+        HAVING COUNT(ss.url) = 0
+        LIMIT ?
+        """,
+        (limit,),
+    )
+
+    processed = 0
+    repaired = 0
+    addedRows = 0
+    samples = []
+
+    for r in rows:
+        processed += 1
+        res = cacheBackfill(int(r["appid"]))
+        addedRows += res["added_rows"]
+
+        if res["added_rows"] > 0:
+            repaired += 1
+        if len(samples) < 10:
+            samples.append(res)
+
+    return {
+        "processed": processed,
+        "repaired": repaired,
+        "added_rows": addedRows,
+        "sample": samples,
+    }
+
+# >> this one embeds only the screenshot rows which dont have a stored vector <<
+@app.get("/embed/ss/missing")
+def embedMissing(limit: int = 200, appid: int | None = None):
+    return embedMissingSS(limit=limit, appid=appid)
+
+@app.get("/coverage/confirm/appid")
+async def covConfirmAppid(appid: int):
+    """
+    basically make sure that an appid has the following
+    - app details
+    - ss rows
+    - ss embedding
+    should fix the missing title (probably)"""
+
+    # >> a before and after type thing; just in case i forget the variable names or smt <<
+    bSS = single_fetch(
+        """
+        SELECT COUNT(*) AS count
+        FROM app_screenshots
+        WHERE appid = ?
+        """,
+        (appid,),
+    )["count"]
+
+    bEmb = single_fetch(
+        """
+        SELECT COUNT(*) AS count
+        FROM screenshot_embeddings
+        WHERE appid = ?
+        """,
+        (appid,),
+    )["count"]
+
+    det = await f_appdetails_cached(appid)
+    if not det:
+        return JSONResponse({"error": "couldnt fetch / no appdetails found for appid."}, status_code=404)
+    
+    covBackfillRes = cacheBackfill(appid)
+    embedRes = embedMissingSS(limit=1000, appid=appid)
+
+    info = single_fetch(
+        """
+        SELECT name 
+        FROM app_index 
+        WHERE appid = ?
+        """,
+        (appid,),
+    )
+
+    aSS = single_fetch(
+        """
+        SELECT COUNT(*) AS count
+        FROM app_screenshots
+        WHERE appid = ?
+        """,
+        (appid,),
+    )["count"]
+
+    aEmb = single_fetch(
+        """
+        SELECT COUNT(*) AS count
+        FROM screenshot_embeddings
+        WHERE appid = ?
+        """,
+        (appid,),
+    )["count"]
+
+    return {
+        "appid": appid,
+        "name": info["name"] if info else None,
+
+        "before": {
+            "ss_rows": bSS,
+            "embed_rows": bEmb
+        },
+
+        "backfill": covBackfillRes,
+        "missing_embeds": embedRes,
+
+        "after": {
+            "ss_rows": aSS,
+            "embed_rows": aEmb
+        },
     }

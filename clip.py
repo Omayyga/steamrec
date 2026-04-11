@@ -180,17 +180,21 @@ def UpsertSSEmbedding(appid: int, url: str, embed: np.ndarray):
         )
     )
 
-def GetSSEmbeddingStored(limit: int = 1000) -> list[dict]:
+def GetSSEmbeddingStored(limit: int | None = None) -> list[dict]:
     """load stored embeddings form sqlite"""
-    rows = all_fetch(
-        """
-        SELECT appid, url, embedding, COALESCE(dim, CAST(length(embedding) / 4 AS INTEGER)) AS dim
+    sql = """
+        SELECT appid, url, embedding, 
+            COALESCE(dim, CAST(length(embedding) / 4 AS INTEGER)) AS dim
         FROM screenshot_embeddings
-        LIMIT ?
-        """,
-        (limit,)
-    )
+        """
 
+    params = []
+
+    if limit is not None:
+        sql += "\nLIMIT ?"
+        params.append(limit)
+
+    rows = all_fetch(sql, tuple(params))
     results = []
 
     for r in rows:
@@ -202,7 +206,7 @@ def GetSSEmbeddingStored(limit: int = 1000) -> list[dict]:
 
     return results
 
-def findStoredTopMatches(queryEmbed, top_k: int = 20, limit : int = 1000):
+def findStoredTopMatches(queryEmbed, top_k: int = 20, limit: int | None = None):
     """search from stored embeddings"""
 
     rows  = GetSSEmbeddingStored(limit = limit)
@@ -219,7 +223,7 @@ def findStoredTopMatches(queryEmbed, top_k: int = 20, limit : int = 1000):
     scored.sort(key = lambda x: x["score"], reverse = True)
     return scored[:top_k]
 
-def findMissingEmb(limit: int = 200, appid: int | None = None) -> list[dict]:
+def findMissingEmb(limit: int | None = 200, appid: int | None = None) -> list[dict]:
     """
     should process rows that are missing
     can also filter by specific appid"""
@@ -235,13 +239,50 @@ def findMissingEmb(limit: int = 200, appid: int | None = None) -> list[dict]:
     params = []
 
     if appid is not None:
-        sql += " ORDER BY ss.appid ASC LIMIT ?"
+        sql += "\nAND ss.appid = ?"
+        params.append(appid)
+
+    sql += "\nORDER BY ss.appid ASC"
+
+    if limit is not None:
+        sql += "\nLIMIT ?"
         params.append(limit)
 
-        rows = all_fetch(sql, tuple(params))
+    rows = all_fetch(sql, tuple(params))
 
-        return [{
-            "appid": int(r["appid"]),
-            "url": r["url"],
-        }
-        for r in rows]    
+    return [{
+        "appid": int(r["appid"]),
+        "url": r["url"],
+    }
+    for r in rows]
+    
+def embedMissingSS(limit: int | None = 200, appid: int | None = None) -> dict:
+    """
+    Embeds ONLY screenshot rows that are missing an embedding"""
+
+    rows = findMissingEmb(limit = limit, appid=appid)
+
+    complete = 0
+    failed = 0
+    failedSample = []
+
+    for r in rows:
+        try:
+            emb = EmbedImgURL(r["url"])
+            UpsertSSEmbedding(r["appid"], r["url"], emb)
+            complete += 1
+        except Exception as e:
+            failed += 1
+            if len(failedSample) < 10:
+                failedSample.append({
+                    "appid": r["appid"],
+                    "url": r["url"],
+                    "error": str(e),
+                })
+
+    return {
+        "processed": len(rows),
+        "embedded": complete,
+        "failed": failed,
+        "failedSample": failedSample,
+    }
