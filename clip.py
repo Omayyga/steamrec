@@ -218,3 +218,30 @@ def findStoredTopMatches(queryEmbed, top_k: int = 20, limit : int = 1000):
 
     scored.sort(key = lambda x: x["score"], reverse = True)
     return scored[:top_k]
+
+def findMissingEmb(limit: int = 200, appid: int | None = None) -> list[dict]:
+    """
+    should process rows that are missing
+    can also filter by specific appid"""
+
+    sql = """
+        SELECT ss.appid, ss.url
+        FROM app_screenshots ss
+        LEFT JOIN screenshot_embeddings se
+            ON ss.appid = se.appid AND ss.url = se.url
+        WHERE se.appid IS NULL
+    """
+
+    params = []
+
+    if appid is not None:
+        sql += " ORDER BY ss.appid ASC LIMIT ?"
+        params.append(limit)
+
+        rows = all_fetch(sql, tuple(params))
+
+        return [{
+            "appid": int(r["appid"]),
+            "url": r["url"],
+        }
+        for r in rows]    

@@ -134,3 +134,43 @@ def SSUpsert(appid: int, appdetails: dict) -> None:
             (appid, url, ts),
         )
 
+def cacheBackfill(appid: int) -> dict:
+    """
+    rebuild [app_screenshots] for single app
+    uses cached json"""
+
+    row = single_fetch(
+        "SELECT json FROM app_details WHERE appid = ?",
+        (appid,)
+    )
+
+    if not row:
+        return {
+            "appid": appid,
+            "cached?": False,
+            "added_rows": 0,
+            "before_rows": 0,
+            "after_rows": 0,
+        }
+    
+    data = json.loads(row["json"])
+    
+    before = single_fetch(
+        "SELECT COUNT(*) as cnt FROM app_screenshots WHERE appid = ?",
+        (appid,)
+    )["cnt"]
+
+    SSUpsert(appid, data)
+
+    after = single_fetch(
+        "SELECT COUNT(*) as cnt FROM app_screenshots WHERE appid = ?",
+        (appid,),
+    )["cnt"]
+
+    return {
+        "appid": appid,
+        "cached?": True,
+        "added_rows": after - before,
+        "before_rows": before,
+        "after_rows": after,
+    }
