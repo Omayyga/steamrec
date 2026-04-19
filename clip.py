@@ -149,6 +149,61 @@ def colMatchByAppid(match):
     col.sort(key=lambda x: x["score"], reverse = True)
     return col
 
+# >> combining the scores should help with balance out the incorrect matches to some extent <<
+def appScoreMultiSS(scores: list [float]) -> float:
+    """
+    Combine multiple top scores for one app into one final score
+    """
+    
+    ranked = sorted(scores, reverse = True)
+    sc1 = ranked[0] if len(ranked) > 0 else 0.0
+    sc2 = ranked[1] if len(ranked) > 1 else 0.0
+    sc3 = ranked[2] if len(ranked) > 2 else 0.0
+
+    # >> should keep the best ss important; should reward apps with multiple strong matches (??) <<
+    return float(sc1 + (0.35 * sc2) + (0.15 * sc3))
+
+def rerankASMulti(matches: list[dict]) -> list[dict]:
+    """
+    Groups the matfches by appid and rerank using multiple screenshots.
+    Best screenshot url is basically used as the representative
+    """
+
+    group = {}
+
+    for m in matches:
+        appid = int(m["appid"])
+
+        if appid not in group:
+            group[appid] = {
+                "appid": appid,
+                "scores": [],
+                "best_url": m["url"],
+                "best_score": m["score"],
+            }
+
+        group[appid]["scores"].append(float(m["score"]))
+
+        if float(m["score"]) > group[appid]["best_score"]:
+            group[appid]["best_score"] = float(m["score"])
+            group[appid]["best_url"] = m["url"]
+
+        rerank = []
+
+        for appid, data in group.items():
+            appScore = appScoreMultiSS(data["scores"])
+            rerank.append({
+                "appid": appid,
+                "url": data["best_url"],
+                "score": data["best_score"],
+                "appScore": appScore,
+                "match_count": len(data["scores"]),
+            })
+
+        rerank.sort(key=lambda x:x["appScore"], reverse = True)
+        return rerank
+
+
 # >> convert float32 enbedding vector to raw bytes <<
 def f32toBytes(vec: np.ndarray) -> bytes:
     return vec.astype(np.float32).tobytes()
