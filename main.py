@@ -9,7 +9,7 @@ from rec import BuildUserProfile_genre, GameScoring, GenCandidates, BuildUserPro
 from rec import prefIdentifiedNonowned
 from steamdata import f_appdetails_cached, cacheBackfill
 from img import LoadImageViaURL, imgInfo, TryLoadUploadedImg
-from clip import EmbedImgURL, EmbedUploaded, embedSSRows, findTopMatches, colMatchByAppid, UpsertSSEmbedding, findStoredTopMatches, embedMissingSS
+from clip import EmbedImgURL, EmbedUploaded, embedSSRows, findTopMatches, colMatchByAppid, UpsertSSEmbedding, findStoredTopMatches, embedMissingSS, rerankASMulti
 
 from urllib.parse import urlencode
 from dotenv import load_dotenv
@@ -411,8 +411,8 @@ async def idFit(request: Request, file: UploadFile = File(...)):
     if err:
         return JSONResponse({"error": err}, status_code=400)
 
-    match = findStoredTopMatches(queryEmb, top_k=20)
-    appMatches = colMatchByAppid(match)
+    ssMatches = findStoredTopMatches(queryEmb, top_k=120)
+    appMatches = rerankASMulti(ssMatches)
 
     if not appMatches:
         return JSONResponse({"error": "No stored screenshot embeddings found."}, status_code=404)

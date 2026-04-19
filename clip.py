@@ -188,20 +188,20 @@ def rerankASMulti(matches: list[dict]) -> list[dict]:
             group[appid]["best_score"] = float(m["score"])
             group[appid]["best_url"] = m["url"]
 
-        rerank = []
+    rerank = []
 
-        for appid, data in group.items():
-            appScore = appScoreMultiSS(data["scores"])
-            rerank.append({
-                "appid": appid,
-                "url": data["best_url"],
-                "score": data["best_score"],
-                "appScore": appScore,
-                "match_count": len(data["scores"]),
-            })
+    for appid, data in group.items():
+        appScore = appScoreMultiSS(data["scores"])
+        rerank.append({
+            "appid": appid,
+            "url": data["best_url"],
+            "score": data["best_score"],
+            "appScore": appScore,
+            "match_count": len(data["scores"]),
+        })
 
-        rerank.sort(key=lambda x:x["appScore"], reverse = True)
-        return rerank
+    rerank.sort(key=lambda x:x["appScore"], reverse = True)
+    return rerank
 
 
 # >> convert float32 enbedding vector to raw bytes <<
