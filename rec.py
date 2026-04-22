@@ -221,6 +221,18 @@ def bestFitResultGet(results: list[dict]) -> dict | None:
     
     return max(valid, key=lambda i: i["fScore"]["score"])
 
+# >> literally just a little helper that focusses using reranker and if not then fall back to score <<
+def visScoreGet(item : dict) -> float:
+    """
+    use app level rerank score if able too;
+    the fallback is raw screenshot score for when appScore is misisng"""
+
+    match = item.get("found_match")
+    if not match:
+        return float("-inf")
+    
+    return float(match.get("appScore", match.get("score", 0.0)))
+
 def bestVisualResultGet(results: list[dict]) -> dict | None:
     """
     returns item with highest image similarity score."""
@@ -232,7 +244,7 @@ def bestVisualResultGet(results: list[dict]) -> dict | None:
     if not valid:
         return None
     
-    return max(valid, key = lambda i: i["found_match"]["score"])
+    return max(valid, key = visScoreGet)
 
 def GetBestRec(results: list[dict], visMargin : float = 0.08) -> dict | None:
     """
@@ -254,6 +266,7 @@ def GetBestRec(results: list[dict], visMargin : float = 0.08) -> dict | None:
 def recScoreGet(i: dict, visWeight: float = 20.0) -> float:
     """
     combine fScore and visual similarity to one score
+    pref appScore over raw screenshot score.
     """
     f = i.get("fScore")
     match = i.get("found_match")
@@ -262,7 +275,7 @@ def recScoreGet(i: dict, visWeight: float = 20.0) -> float:
         return float ("-inf")
     
     fScore = float(f.get("score", 0.0))
-    visScore = float(match.get("score", 0.0))
+    visScore = visScoreGet(i)
 
     return fScore + (visScore * visWeight)
 
@@ -274,15 +287,13 @@ def recCandGet(results : list[dict], visMargin : float = 0.08) -> list[dict]:
         return []
     
     visScores = [
-        float(item["found_match"]["score"])
-        for item in results
+        item for item in results
         if item.get("found_match")
     ]
-
     if not visScores:
         return []
     
-    bestVisScore = max(visScores)
+    bestVisScore = max(visScoreGet(item) for item in visScores)
     minScore = bestVisScore - visMargin
 
     candidates = [
@@ -291,7 +302,7 @@ def recCandGet(results : list[dict], visMargin : float = 0.08) -> list[dict]:
             not item.get("owned", False) and
             item.get("found_match") and
             item.get("fScore") and
-            float(item["found_match"]["score"]) >= minScore
+            visScoreGet(item) >= minScore
         )
     ]
     return candidates
