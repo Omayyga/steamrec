@@ -47,7 +47,7 @@ async def BuildUserProfile_genre(steamid64: str, TopGames_n: int = 50) -> Counte
         for genre in ext_genre(appdetails):
             profile[genre] += weight
 
-            return profile
+    return profile
         
 async def BuildUserProfile_cat(steamid64: str, TopGames_n: int = 50) -> Counter:
     """
@@ -81,7 +81,7 @@ async def BuildUserProfile_cat(steamid64: str, TopGames_n: int = 50) -> Counter:
         for c in catNames:
             profile[c] += weight
 
-        return profile
+    return profile
     
 def topMatch(itemlist: list[str], profile: Counter, n: int = 3) -> list[str]:
     rank = sorted(itemlist, key = lambda x: profile.get(x, 0), reverse = True)
@@ -274,7 +274,8 @@ def recScoreGet(i: dict, visWeight: float = 20.0) -> float:
     if not f or not match:
         return float ("-inf")
     
-    fScore = float(f.get("score", 0.0))
+    rawFit = float(f.get("score", 0.0))
+    fScore = math.log1p(rawFit)
     visScore = visScoreGet(i)
 
     return fScore + (visScore * visWeight)

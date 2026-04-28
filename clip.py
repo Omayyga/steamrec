@@ -160,8 +160,12 @@ def appScoreMultiSS(scores: list [float]) -> float:
     sc2 = ranked[1] if len(ranked) > 1 else 0.0
     sc3 = ranked[2] if len(ranked) > 2 else 0.0
 
+    # > these should only be counted if they are close to the best <<
+    bn1 = sc2 if sc2 >= (sc1 - 0.03) else 0.0
+    bn2 = sc3 if sc3 >= (sc1 - 0.05) else 0.0
+
     # >> should keep the best ss important; should reward apps with multiple strong matches (??) <<
-    return float(sc1 + (0.35 * sc2) + (0.15 * sc3))
+    return float(sc1 + (0.15 * bn1) + (0.05 * bn2))
 
 def rerankASMulti(matches: list[dict]) -> list[dict]:
     """
