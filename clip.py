@@ -282,6 +282,101 @@ def findStoredTopMatches(queryEmbed, top_k: int = 20, limit: int | None = None):
     scored.sort(key = lambda x: x["score"], reverse = True)
     return scored[:top_k]
 
+def normVec(v: np.ndarray) -> np.ndarray:
+    """
+    l2 normalise a np vector"""
+
+    dn = np.linalg.norm(v)
+    if dn == 0:
+        return v
+    
+    return v / dn
+
+def appidStoredEmbGet(appids: list[int]) -> list[dict]:
+    """
+    load stores ss embeddings only for requested appid"""
+    if not appids:
+        return []
+    
+    ph = ",".join("?" for _ in appids)
+    sql = f"""
+        SELECT appid, url, embedding,'
+            COALESCE(dim, CAST(length(embedding) / 4 AS INTEGER)) AS dim
+        FROM screenshot_embeddings
+        WHERE appid IN ({ph})
+    """
+
+    rows = all_fetch(sql, tuple(appids))
+
+    results = []
+
+    for r in rows:
+        results.append({
+            "appid": int(r["appid"]),
+            "url": r["url"],
+            "embed": bytesToF32(r["embedding"], int(r["dim"])),
+        })
+
+    return results
+    
+def buildAppCentroids(appids: list[int]) -> dict[int, np.ndarray]:
+    """
+    to build a normalised centroid embedding per appid from ss embeddings
+    """
+
+    rows = appidStoredEmbGet(appids)
+    group = dict[int, list[np.ndarray]] = {}
+
+    for r in rows:
+        group.setdefault(r["appid"], []).append(r["embed"])
+
+    centroids: dict[int, np.ndarray] = {}
+
+    for appid, embeds in group.items():
+        if not embeds:
+            continue
+
+        m = np.stack(embeds, axist = 0)
+        centroid = m.mean(axis = 0)
+        centroid[appid] = normVec(centroid)
+
+    return centroids
+
+def centroidReranker(queryEmb, appMatches: list[dict], sl_k: int = 15) -> list[dict]:
+    """
+    2nd stage of rerank.
+        - Take top app matchees from ss rerank
+        - compare query to per app centroid
+        - return reranked matches"""
+    
+    shortlist = appMatches[:sl_k]
+    appids = [int(m["appid"]) for m in shortlist]
+    centroids = buildAppCentroids(appids)
+
+    rerank = []
+
+    for m in shortlist:
+        appid = int(m["appid"])
+        cr = centroids.get(appid)
+
+        if cr is None:
+            crScore = float("-inf")
+            fScore = float(m["score"])
+        else:
+            crScore = CosSimilarity(queryEmb, cr)
+
+            # >> should blen centroid view w. screenshot rerank score <<
+            fScore = float((0.70 * crScore) + (0.30 * float(m["appScore"])))
+
+        row = dict(m)
+        row["ssAppScore"] = float(m["appScore"])
+        row["centroidScore"] = crScore
+        row["finalScore"] = fScore
+        rerank.append(row)
+
+    rerank.sort(key = lambda x: x["appScore"], reverse = True)
+    return rerank
+
 def findMissingEmb(limit: int | None = 200, appid: int | None = None) -> list[dict]:
     """
     should process rows that are missing
