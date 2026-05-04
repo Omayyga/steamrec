@@ -355,21 +355,27 @@ def centroidReranker(queryEmb, appMatches: list[dict], sl_k: int = 15) -> list[d
 
     rerank = []
 
+    # >>> kw: rScore = RAWSCORE -> best single ss score
+    # mssScore = MULTISCREENSHOTSCORE -> multi-screenshot app score
+    # crScore = CENTROIDRERANKSCORE -> app centroid similarity <<<
     for m in shortlist:
         appid = int(m["appid"])
         cr = centroids.get(appid)
 
+        rScore = float(m["score"])
+        mssScore = float(m.get("appScore", m["score"]))
+
         if cr is None:
             crScore = float("-inf")
-            fScore = float(m["score"])
+            fScore = rScore
         else:
-            crScore = CosSimilarity(queryEmb, cr)
+            crScore = float(CosSimilarity(queryEmb, cr))
 
-            # >> should blen centroid view w. screenshot rerank score <<
-            fScore = float((0.70 * crScore) + (0.30 * float(m["appScore"])))
+            # >> should blend the 3 scores together; for def refer above <<
+            fScore = float((0.55 * rScore) + (0.35 * crScore) + (0.10 * mssScore))
 
         row = dict(m)
-        row["ssAppScore"] = float(m["appScore"])
+        row["ssAppScore"] = mssScore
         row["centroidScore"] = crScore
         row["finalScore"] = fScore
         row["appScore"] = fScore
