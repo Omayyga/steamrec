@@ -300,7 +300,7 @@ def appidStoredEmbGet(appids: list[int]) -> list[dict]:
     
     ph = ",".join("?" for _ in appids)
     sql = f"""
-        SELECT appid, url, embedding,'
+        SELECT appid, url, embedding,
             COALESCE(dim, CAST(length(embedding) / 4 AS INTEGER)) AS dim
         FROM screenshot_embeddings
         WHERE appid IN ({ph})
@@ -325,7 +325,7 @@ def buildAppCentroids(appids: list[int]) -> dict[int, np.ndarray]:
     """
 
     rows = appidStoredEmbGet(appids)
-    group = dict[int, list[np.ndarray]] = {}
+    group: dict[int, list[np.ndarray]] = {}
 
     for r in rows:
         group.setdefault(r["appid"], []).append(r["embed"])
@@ -336,9 +336,9 @@ def buildAppCentroids(appids: list[int]) -> dict[int, np.ndarray]:
         if not embeds:
             continue
 
-        m = np.stack(embeds, axist = 0)
+        m = np.stack(embeds, axis = 0)
         centroid = m.mean(axis = 0)
-        centroid[appid] = normVec(centroid)
+        centroids[appid] = normVec(centroid)
 
     return centroids
 
@@ -374,7 +374,7 @@ def centroidReranker(queryEmb, appMatches: list[dict], sl_k: int = 15) -> list[d
         row["finalScore"] = fScore
         rerank.append(row)
 
-    rerank.sort(key = lambda x: x["appScore"], reverse = True)
+    rerank.sort(key = lambda x: x["finalScore"], reverse = True)
     return rerank
 
 def findMissingEmb(limit: int | None = 200, appid: int | None = None) -> list[dict]:

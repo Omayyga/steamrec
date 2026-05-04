@@ -10,6 +10,7 @@ from rec import prefIdentifiedNonowned
 from steamdata import f_appdetails_cached, cacheBackfill
 from img import LoadImageViaURL, imgInfo, TryLoadUploadedImg
 from clip import EmbedImgURL, EmbedUploaded, embedSSRows, findTopMatches, colMatchByAppid, UpsertSSEmbedding, findStoredTopMatches, embedMissingSS, rerankASMulti
+from clip import centroidReranker
 
 from urllib.parse import urlencode
 from dotenv import load_dotenv
@@ -412,12 +413,13 @@ async def idFit(request: Request, file: UploadFile = File(...)):
         return JSONResponse({"error": err}, status_code=400)
 
     ssMatches = findStoredTopMatches(queryEmb, top_k=120)
-    appMatches = rerankASMulti(ssMatches)
+    appMatchesAS = rerankASMulti(ssMatches)
+    appMatchesCR = centroidReranker(queryEmb, appMatchesAS, sl_k=15)
 
-    if not appMatches:
+    if not appMatchesAS:
         return JSONResponse({"error": "No stored screenshot embeddings found."}, status_code=404)
     
-    topMatches = appMatches[:5]
+    topMatches = appMatchesCR[:5]
     topAppids = [int(match["appid"]) for match in topMatches]
 
     fResults = await ScoreGameMulti(topAppids, steamid64)
