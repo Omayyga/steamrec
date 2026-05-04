@@ -372,6 +372,7 @@ def centroidReranker(queryEmb, appMatches: list[dict], sl_k: int = 15) -> list[d
         row["ssAppScore"] = float(m["appScore"])
         row["centroidScore"] = crScore
         row["finalScore"] = fScore
+        row["appScore"] = fScore
         rerank.append(row)
 
     rerank.sort(key = lambda x: x["finalScore"], reverse = True)

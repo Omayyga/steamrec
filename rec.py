@@ -224,14 +224,14 @@ def bestFitResultGet(results: list[dict]) -> dict | None:
 # >> literally just a little helper that focusses using reranker and if not then fall back to score <<
 def visScoreGet(item : dict) -> float:
     """
-    use app level rerank score if able too;
-    the fallback is raw screenshot score for when appScore is misisng"""
+    use final centroid rerank score if able too;
+    the fallback is appScore, else: raw screenshot score for when appScore is missing"""
 
     match = item.get("found_match")
     if not match:
         return float("-inf")
     
-    return float(match.get("appScore", match.get("score", 0.0)))
+    return float(match.get("finalScore", match.get("appScore", match.get("score", 0.0))))
 
 def bestVisualResultGet(results: list[dict]) -> dict | None:
     """
