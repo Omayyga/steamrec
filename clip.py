@@ -368,17 +368,36 @@ def centroidReranker(queryEmb, appMatches: list[dict], sl_k: int = 15) -> list[d
         if cr is None:
             crScore = float("-inf")
             fScore = rScore
+            bm = "raw_fallback"
         else:
             crScore = float(CosSimilarity(queryEmb, cr))
 
-            # >> should blend the 3 scores together; for def refer above <<
-            fScore = float((0.55 * rScore) + (0.35 * crScore) + (0.10 * mssScore))
+            gap = rScore - crScore
+            # >> raw ss = stronger than app centroid <<
+            # >> should help with for single frame matches that look exact <<
+            if gap >= 0.04:
+                fScore = float(
+                    (0.60 * rScore) +
+                    (0.30 * crScore) +
+                    (0.10 * mssScore)
+                )
+                bm = "raw_heavy"
+            else:
+                # >> raw + centroid broadly agree <<
+                # >> should trust applevel / centroid signal more in this case <<
+                fScore = float(
+                    (0.40 * rScore) + 
+                    (0.45 * crScore) + 
+                    (0.15 * mssScore)
+                )
+                bm = "balanced_centroid"
 
         row = dict(m)
         row["ssAppScore"] = mssScore
         row["centroidScore"] = crScore
         row["finalScore"] = fScore
         row["appScore"] = fScore
+        row["blendMode"] = bm
         rerank.append(row)
 
     rerank.sort(key = lambda x: x["finalScore"], reverse = True)
