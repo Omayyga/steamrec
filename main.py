@@ -412,8 +412,8 @@ async def idFit(request: Request, file: UploadFile = File(...)):
 
     ssMatches = findStoredTopMatches(queryEmb, top_k=120)
     appMatchesAS = rerankASMulti(ssMatches)
-    appMatchesCR = centroidReranker(queryEmb, appMatchesAS, sl_k=15)
-    appMatchesTPR = txtPromptRerank(queryEmb, appMatchesCR, sl_k = 15, bMax = 0.04)
+    appMatchesCR = centroidReranker(queryEmb, appMatchesAS, sl_k=25)
+    appMatchesTPR = txtPromptRerank(queryEmb, appMatchesCR, sl_k = 25, bMax = 0.04)
 
     if not appMatchesAS:
         return JSONResponse({"error": "No stored screenshot embeddings found."}, status_code=404)
@@ -730,4 +730,36 @@ async def covConfirmAppid(appid: int):
             "ss_rows": aSS,
             "embed_rows": aEmb
         },
+    }
+
+@app.get("/dbg/refresh-appdetails")
+async def refAppDetails(appids: str):
+    parsed = []
+
+    for p in appids.split(","):
+        p = p.strip()
+        if p.isdigit():
+            parsed.append(int(p))
+
+    refresh = []
+
+    for appid in parsed:
+        data = await f_appdetails_cached(appid, forceRef = True)
+
+        refresh.append({
+            "appid": appid,
+            "refreshed": data is not None,
+            "name": data.get("name") if data else None,
+            "genres": [
+                g.get("description")
+                for g in (data.get("genres") or [])
+                if g.get("description")
+            ] if data else [],
+        })
+
+        await asyncio.sleep(0.25)
+
+    return {
+        "checked": len(parsed),
+        "refreshed": refresh
     }

@@ -214,7 +214,7 @@ def txtScoreAgg(score: list[float]) -> float:
     if len(ranked) == 1:
         return float(ranked[0])
     
-    return float(ranked[0] + (0.30 * ranked[1]))
+    return float((0.70 * ranked[0]) + (0.30 * ranked[1]))
 
 # >> combining the scores should help with balance out the incorrect matches to some extent <<
 def appScoreMultiSS(scores: list [float]) -> float:
