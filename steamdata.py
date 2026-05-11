@@ -36,6 +36,7 @@ async def f_appdetails_store(appid: int) -> dict | None:
     url = "https://store.steampowered.com/api/appdetails"
     params = {
         "appids": str(appid),
+        "l": "english", # >> forces english for langauge metadata <<
     }
 
     async with httpx.AsyncClient(timeout=30) as client:
@@ -51,12 +52,12 @@ async def f_appdetails_store(appid: int) -> dict | None:
     return app_entry.get("data")
 
 # >>> basically ensures data is up to date. <<<
-async def f_appdetails_cached(appid: int, ttl_seconds: int = 60 * 60 * 24 * 7) -> dict | None: # >>> ttl_seconds -> cached data lifespan <<<
+async def f_appdetails_cached(appid: int, ttl_seconds: int = 60 * 60 * 24 * 7, forceRef = False) -> dict | None: # >>> ttl_seconds -> cached data lifespan <<<
 
     r = single_fetch("SELECT json, fetched_at FROM app_details WHERE appid = ?", [appid])
     current_time = timestamp()
 
-    if r:
+    if r and not forceRef:
         data_age = current_time - r["fetched_at"]
         if data_age < ttl_seconds:
             return json.loads(r["json"])
