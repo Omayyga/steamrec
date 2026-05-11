@@ -5,13 +5,11 @@ import asyncio
 
 from db import all_fetch, dbInitiate, single_fetch 
 from dbsync import dbsync_owned
-from rec import BuildUserProfile_genre, GameScoring, GenCandidates, BuildUserProfile_cat, ScoreGame, ScoreGameMulti, bestFitResultGet, bestVisualResultGet, GetBestRec
-from rec import prefIdentifiedNonowned
+from rec import BuildUserProfile_genre, GameScoring, GenCandidates, BuildUserProfile_cat, ScoreGameMulti, bestVisualResultGet, GetBestRec, prefIdentifiedNonowned
 from steamdata import f_appdetails_cached, cacheBackfill
 from img import LoadImageViaURL, imgInfo, TryLoadUploadedImg
 from clip import EmbedImgURL, EmbedUploaded, embedSSRows, findTopMatches, colMatchByAppid, UpsertSSEmbedding, findStoredTopMatches, embedMissingSS, rerankASMulti
-from clip import centroidReranker
-
+from clip import centroidReranker, txtPromptRerank
 from urllib.parse import urlencode
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, UploadFile, File
@@ -415,11 +413,12 @@ async def idFit(request: Request, file: UploadFile = File(...)):
     ssMatches = findStoredTopMatches(queryEmb, top_k=120)
     appMatchesAS = rerankASMulti(ssMatches)
     appMatchesCR = centroidReranker(queryEmb, appMatchesAS, sl_k=15)
+    appMatchesTPR = txtPromptRerank(queryEmb, appMatchesCR, sl_k = 15, bMax = 0.04)
 
     if not appMatchesAS:
         return JSONResponse({"error": "No stored screenshot embeddings found."}, status_code=404)
     
-    topMatches = appMatchesCR[:5]
+    topMatches = appMatchesTPR[:5]
     topAppids = [int(match["appid"]) for match in topMatches]
 
     fResults = await ScoreGameMulti(topAppids, steamid64)

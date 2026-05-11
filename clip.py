@@ -31,6 +31,31 @@ def _normalize_embedding(vec) -> np.ndarray:
     vec = vec / vec.norm(dim=-1, keepdim=True)
     return vec.cpu().numpy()[0]
 
+def _normalize_embedding_batch(vec) -> np.ndarray:
+    """
+    normalise a batch of embeddings. returns numpy array.
+    """
+    vec = _embedding_tensor(vec)
+    vec = vec / vec.norm(dim=-1, keepdim=True)
+    return vec.cpu().numpy()
+
+def embTxtPrompts(prompts: list[str]) -> np.ndarray:
+    """
+    convert list of txt prompts to normalised clip embeddings"""
+
+    inputs = processor(
+        text = prompts,
+        return_tensors = "pt",
+        padding = True,
+        truncation = True
+    )
+    inputs = {k : v.to(DEVICE) for k, v in inputs.items()}
+
+    with torch.no_grad():
+        txtFeatures = model.get_text_features(**inputs)
+
+    return _normalize_embedding_batch(txtFeatures)
+
 # >> convert PIL -> clip embedding vector <<<
 def EmbedPILImg(img: Image.Image) -> np.ndarray:
     input = processor(images=img, return_tensors="pt")
@@ -148,6 +173,48 @@ def colMatchByAppid(match):
     col = list(bestByAppid.values())
     col.sort(key=lambda x: x["score"], reverse = True)
     return col
+
+def appNameGet(appid: int) -> str | None:
+    """
+    get appname from app_index"""
+
+    row = single_fetch(
+        """
+        SELECT name
+        FROM app_index
+        WHERE appid = ?
+        """,
+        (appid,)
+    )
+
+    if not row:
+        return None
+    
+    return row["name"]
+
+def appTxtPrompts(name : str) -> list[str]:
+    """
+    build clip text prompts for an app name *wip*"""
+
+    return [
+        f"gameplay screenshot from {name}",
+        f"screenshot from game: {name}",
+        f"screenshot via steamstore for {name}",
+    ]
+
+def txtScoreAgg(score: list[float]) -> float:
+    """
+    Aggregate multiple scores for one app.
+    use top 2, hopefully makes it so one doesnt dominate"""
+
+    if not score:
+        return 0.0
+    ranked = sorted(score, reverse = True)#
+
+    if len(ranked) == 1:
+        return float(ranked[0])
+    
+    return float(ranked[0] + (0.30 * ranked[1]))
 
 # >> combining the scores should help with balance out the incorrect matches to some extent <<
 def appScoreMultiSS(scores: list [float]) -> float:
@@ -368,21 +435,114 @@ def centroidReranker(queryEmb, appMatches: list[dict], sl_k: int = 15) -> list[d
         if cr is None:
             crScore = float("-inf")
             fScore = rScore
+            bm = "raw_fallback"
         else:
             crScore = float(CosSimilarity(queryEmb, cr))
 
-            # >> should blend the 3 scores together; for def refer above <<
-            fScore = float((0.55 * rScore) + (0.35 * crScore) + (0.10 * mssScore))
+            gap = rScore - crScore
+            # >> raw ss = stronger than app centroid <<
+            # >> should help with for single frame matches that look exact <<
+            if gap >= 0.04:
+                fScore = float(
+                    (0.60 * rScore) +
+                    (0.30 * crScore) +
+                    (0.10 * mssScore)
+                )
+                bm = "raw_heavy"
+            else:
+                # >> raw + centroid broadly agree <<
+                # >> should trust applevel / centroid signal more in this case <<
+                fScore = float(
+                    (0.40 * rScore) + 
+                    (0.45 * crScore) + 
+                    (0.15 * mssScore)
+                )
+                bm = "balanced_centroid"
 
         row = dict(m)
         row["ssAppScore"] = mssScore
         row["centroidScore"] = crScore
         row["finalScore"] = fScore
         row["appScore"] = fScore
+        row["blendMode"] = bm
         rerank.append(row)
 
     rerank.sort(key = lambda x: x["finalScore"], reverse = True)
     return rerank
+
+def txtPromptRerank(queryEmb, appmatches: list[dict], sl_k: int = 15, bMax: float = 0.04) -> list[dict]:
+    """
+    third stage of rerank -> uses clip image to text as a bonus
+    if anything goes wrong make sure:
+    - doesn't replace visual matching
+    - should only nudge the closer candidates only"""
+
+    sl = appmatches[:sl_k]
+
+    prompts = []
+    owners = []
+
+    for i in sl:
+        appid = int(i["appid"])
+        name = appNameGet(appid)
+
+        if not name:
+            continue
+
+        for pr in appTxtPrompts(name):
+            prompts.append(pr)
+            owners.append({
+                "appid": appid,
+                "name": name,
+                "prompt": pr,
+            })
+
+    # >> return original matches if no prompts are able to be built <<
+    if not prompts:
+        return appmatches
+
+    txtEmb = embTxtPrompts(prompts)
+    scoreByAppid: dict[int, list[float]] = {}
+
+    for owner, txtmb, in zip(owners, txtEmb):
+        appid = int(owner["appid"])
+        score = CosSimilarity(queryEmb, txtmb)
+        scoreByAppid.setdefault(appid, []).append(score)
+
+    txtScores = {appid: txtScoreAgg(scores) for appid, scores in scoreByAppid.items()}
+
+    v = list(txtScores.values())
+    minTxt = min(v) if v else 0.0
+    maxTxt = max(v) if v else 1.0
+    dn = maxTxt - minTxt
+
+    reranked = []
+
+    for m in appmatches:
+        appid = int(m["appid"])
+        vScore = float(m.get("fScore", m.get("appScore", m.get("score", 0.0))))
+        txtScore = txtScores.get(appid)
+
+        # >> txtScoreN makes it so text can be compared within current shortlist <<
+        if txtScore is None or dn == 0:
+            txtScoreN = 0.0
+        else:
+            txtScoreN = float((txtScore - minTxt) / dn)
+
+        txtBn = txtScoreN * bMax
+        fScore = vScore + txtBn
+
+        row = dict(m)
+        row["preTextScore"] = vScore
+        row["textScore"] = txtScore
+        row["NormalisedTextScore"] = txtScoreN
+        row["finalScore"] = fScore
+        row["appScore"] = fScore
+        row["rerankStage"] = "text_prompt"
+        reranked.append(row)
+
+    reranked.sort(key = lambda x: x["finalScore"], reverse = True)
+    return reranked
 
 def findMissingEmb(limit: int | None = 200, appid: int | None = None) -> list[dict]:
     """
