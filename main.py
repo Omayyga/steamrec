@@ -395,6 +395,92 @@ def idTest(file: UploadFile = File(...)):
         "matches": appMatches[:5],
     }
 
+def visualScoreGet(item: dict) -> float:
+    """
+    pull current visual score from combined result item
+    preference should be:
+    finalScore > appScore > raw screenshot score"""
+
+    match = item.get("found_match") or {}
+    return float (
+        match.get("finalScore",
+                  match.get("appScore", match.get("score", 0.0))
+                  )
+    )
+
+def visualCandGet(results: list[dict], limit: int = 3) -> list[dict]:
+    """
+    build top-n visual candidates list for user facing output"""
+
+    val = [
+        item for item in results
+        if item.get("found_match")
+    ]
+    val.sort(key = visualScoreGet, reverse=True)
+
+    candidates = []
+
+    for rank, item in enumerate(val[:limit]):
+        match = item.get("found_match") or {}
+        f = item.get("fScore") or {}
+
+        candidates.append({
+            "rank": rank,
+            "appid": int(match["appid"]),
+            "name": f.get("name"),
+            "vis_score": visualScoreGet(item),
+            "owned": bool(item.get("owned", False)),
+
+            # >> for debug <<
+            "raw_score": match.get("score"),
+            "finalScore": match.get("finalScore"),
+            "text_score": match.get("textScore"),
+            "textScoreNorm": match.get("textScoreNorm"),
+            "blendMode": match.get("blendMode"),
+            "rerank_stage": match.get("rerankStage"),
+        })
+
+    return candidates
+
+def visConfidenceGet(candidates: list[dict]) -> str:
+    """
+    estimates confidence from the score gap between rank 1 and 2."""
+
+    if not candidates:
+        return {
+            "topScore": None,
+            "secondScore": None,
+            "confidence": "none",
+            "gap": None
+        }
+    
+    topScore = float(candidates[0]["visScore"])
+
+    if len(candidates) == 1:
+        return {
+            "topScore": topScore,
+            "secondScore": None,
+            "confidence": "high",
+            "gap": None
+        }
+
+    secondScore = float(candidates[1]["visScore"])
+    gap = topScore - secondScore
+
+    if gap >= 0.06:
+        confidence = "high"
+    elif gap >= 0.03:
+        confidence = "medium"
+    else:
+        confidence = "low"
+
+    return {
+        "topScore": topScore,
+        "secondScore": secondScore,
+        "confidence": confidence,
+        "gap": gap
+    }
+
 @app.post("/id/fit")
 async def idFit(request: Request, file: UploadFile = File(...)):
     """

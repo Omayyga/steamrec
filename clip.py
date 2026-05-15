@@ -520,7 +520,7 @@ def txtPromptRerank(queryEmb, appmatches: list[dict], sl_k: int = 15, bMax: floa
 
     for m in appmatches:
         appid = int(m["appid"])
-        vScore = float(m.get("fScore", m.get("appScore", m.get("score", 0.0))))
+        vScore = float(m.get("finalScore", m.get("appScore", m.get("score", 0.0))))
         txtScore = txtScores.get(appid)
 
         # >> txtScoreN makes it so text can be compared within current shortlist <<
@@ -535,7 +535,7 @@ def txtPromptRerank(queryEmb, appmatches: list[dict], sl_k: int = 15, bMax: floa
         row = dict(m)
         row["preTextScore"] = vScore
         row["textScore"] = txtScore
-        row["NormalisedTextScore"] = txtScoreN
+        row["textScoreNorm"] = txtScoreN
         row["finalScore"] = fScore
         row["appScore"] = fScore
         row["rerankStage"] = "text_prompt"
