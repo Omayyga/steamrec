@@ -420,7 +420,7 @@ def visualCandGet(results: list[dict], limit: int = 3) -> list[dict]:
 
     candidates = []
 
-    for rank, item in enumerate(val[:limit]):
+    for rank, item in enumerate(val[:limit], start = 1):
         match = item.get("found_match") or {}
         f = item.get("fScore") or {}
 
@@ -442,7 +442,7 @@ def visualCandGet(results: list[dict], limit: int = 3) -> list[dict]:
 
     return candidates
 
-def visConfidenceGet(candidates: list[dict]) -> str:
+def visConfidenceGet(candidates: list[dict]) -> dict:
     """
     estimates confidence from the score gap between rank 1 and 2."""
 
@@ -454,7 +454,7 @@ def visConfidenceGet(candidates: list[dict]) -> str:
             "gap": None
         }
     
-    topScore = float(candidates[0]["visScore"])
+    topScore = float(candidates[0]["vis_score"])
 
     if len(candidates) == 1:
         return {
@@ -464,7 +464,7 @@ def visConfidenceGet(candidates: list[dict]) -> str:
             "gap": None
         }
 
-    secondScore = float(candidates[1]["visScore"])
+    secondScore = float(candidates[1]["vis_score"])
     gap = topScore - secondScore
 
     if gap >= 0.06:
@@ -496,10 +496,10 @@ async def idFit(request: Request, file: UploadFile = File(...)):
     if err:
         return JSONResponse({"error": err}, status_code=400)
 
-    ssMatches = findStoredTopMatches(queryEmb, top_k=120)
+    ssMatches = findStoredTopMatches(queryEmb, top_k=250)
     appMatchesAS = rerankASMulti(ssMatches)
-    appMatchesCR = centroidReranker(queryEmb, appMatchesAS, sl_k=25)
-    appMatchesTPR = txtPromptRerank(queryEmb, appMatchesCR, sl_k = 25, bMax = 0.04)
+    appMatchesCR = centroidReranker(queryEmb, appMatchesAS, sl_k=30)
+    appMatchesTPR = txtPromptRerank(queryEmb, appMatchesCR, sl_k = 30, bMax = 0.04)
 
     if not appMatchesAS:
         return JSONResponse({"error": "No stored screenshot embeddings found."}, status_code=404)
@@ -535,10 +535,15 @@ async def idFit(request: Request, file: UploadFile = File(...)):
     if bestVis:
         idOwned = bestVis.get("owned", False)
 
+    VisualCandidates = visualCandGet(combinedR, limit = 3)
+    VisualConfidence = visConfidenceGet(VisualCandidates)
+
     return {
         "filename": file.filename,
         "best_visual": bestVis,
         "id_owned": idOwned,
+        "visual_confidence": VisualConfidence,
+        "visual_candidates": VisualCandidates,
         "recommendation": bestRec,
         "result": combinedR
     }
